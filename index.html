@@ -72,7 +72,7 @@ body {
 <body>
 <div id="app"></div>
 <script>
-var BUILD='0827-1324J';
+var BUILD='0827-1339J';
 // 自動生成: tools/make_field_demo.py
 // ※[概形]ルートは主要地点を結んだ近似。実山行には gpx2route.py で実GPXを変換して差し替えること
 var ROUTES = [{"id":"harumi","name":"晴海フラッグ周回 [概形]","dist":2011,"gain":1,"poly":"_kqxEodbtYiG_HeEgDwH_IgB{Bq@qAM{@Be@Fg@`@qAp@kAr@aAp@w@x@q@`Ae@`@KfAIbADz@LxBr@zA`AzFlFr@~@z@jBf@pBRjCA`B]|EyEbK","ele":"E???A??????????@?????????????","wps":[{"d":0,"n":"晴海ふ頭公園","t":"start"},{"d":684,"n":"北端折返し","t":"wp"},{"d":1090,"n":"晴海緑道公園","t":"wp"},{"d":2011,"n":"下山口","t":"goal"}],"cts":[[0,0],[500,8],[1000,15],[1500,23],[2000,30],[2011,30]],"demo":true},{"id":"takao","name":"高尾山 1号路 往復 [概形]","dist":5551,"gain":409,"poly":"ulnxEuc`qY`AnDV~AF~AKnAUhAa@jAi@fAuBfDmC~GYlAEh@Aj@Dn@d@vAxCbGpBlDd@fAbB`GtApDlApD`CfFpApEzDdL`FlJdDtEtBfDjCnD`@x@`@hAl@~Bb@xBJnABlACj@QxAoAxFnAyFPyABk@CmAKoAc@yBm@_Ca@iAa@y@kCoDuBgDeDuEaFmJ{DeLqAqEaCgFmAqDuAqDcBaGe@gAqBmDyCcGe@wAEo@@k@Di@XmAlC_HtBgDh@gA`@kATiAJoAG_BW_BaAoD","ele":"{JGGMSU[[mA}B]MKKQa@OG]WSWMSOOMOEIMOKKGOu@t@NFJJNLHDNLNNRLVRV\\FN`@PJJL\\|BlAZZTRLFF","wps":[{"d":0,"n":"高尾山口駅","t":"start"},{"d":680,"n":"金比羅台","t":"wp"},{"d":1452,"n":"ケーブル高尾山駅","t":"hut"},{"d":2360,"n":"薬王院","t":"junction"},{"d":2775,"n":"高尾山山頂","t":"peak"},{"d":3191,"n":"薬王院","t":"junction"},{"d":4099,"n":"ケーブル高尾山駅","t":"hut"},{"d":4871,"n":"金比羅台","t":"wp"},{"d":5551,"n":"下山口","t":"goal"}],"cts":[[0,0],[500,42],[1000,63],[1500,82],[2000,96],[2500,109],[3000,133],[3500,146],[4000,156],[4500,168],[5000,192],[5500,210],[5551,210]],"demo":true},{"id":"fuji","name":"富士山 吉田ルート [概形]","dist":5065,"gain":1410,"poly":"{k`wEijwmYMo@Ck@FYXKd@DbBXl@@`@MRa@Du@?aCFy@Pi@`@Yl@GjBDl@Eb@URg@Dw@AeCBw@Ne@ZQfEPb@MV_@Hs@FyBHs@Ra@^Mj@DbB`@j@F^IR]Hs@@}BFw@Pg@^Qh@?bBTl@@`@MTa@Hu@D_CHu@Rc@^Mj@DpCp@`@CT[Ps@RwDRe@^Ql@@hCj@\\CRWf@iB\\y@f@k@^S\\H\\b@hArCZV^Ad@UvAcAj@Sd@?\\XXn@h@|BTr@\\\\b@Dh@Q`CyA`@C^TXl@f@rBTl@\\Zb@@h@Q|A_Aj@Sb@?ZXRn@h@nDT`@\\Ff@KvAq@n@Id@HZ^Pr@P`CLt@Tb@`@Jj@GdBg@l@Ib@DV\\Hn@FxBJv@Rd@`@Pj@?hBSj@?`@PPb@Dt@CbCDx@Nf@^Rl@?tCc@d@HV^Lp@P|BJr@T^^Hj@IdBi@n@Eb@HR^Fn@?xBHt@Vd@d@Jn@GtA}@h@Uf@?`@V\\n@z@zB\\n@`@Zb@Ad@W`BuB","ele":"aoCAAAAAEACACECCCAGCCACGACCKACACAACAECECEMGIIIWMKMO[OOOOm@OOSy@USS_AUUm@UWOOMq@OQOc@OQQQa@QOQOq@OQQc@QQQQc@QOQQq@OOO_@QQQQa@OOQO]OOOQ_@SSSUg@USSSg@SQQSw@QQOa@QMOO_@OMMKYMMOO[QOQQc@QOOM_@","wps":[{"d":0,"n":"五合目","t":"start"},{"d":1191,"n":"六合目","t":"wp"},{"d":2065,"n":"七合目","t":"hut"},{"d":3242,"n":"八合目","t":"hut"},{"d":4082,"n":"本八合目 [下山道分岐]","t":"escape"},{"d":4676,"n":"九合目","t":"wp"},{"d":5065,"n":"吉田口頂上","t":"goal"}],"cts":[[0,0],[500,14],[1000,29],[1500,55],[2000,105],[2500,145],[3000,188],[3500,232],[4000,276],[4500,317],[5000,358],[5065,358]],"demo":true}];
@@ -393,7 +393,7 @@ if (typeof module !== 'undefined') module.exports = CORE;
     dev: null, suppressUntil: 0, graceUntil: 0,
     heading: null, headingReal: 0,
     sun: null, sunNotice: false,
-    wx: null,
+    wx: null, wxTriedMs: 0,
     track: [], lastTrackMs: 0,
     wpPassed: {}, wpFlashUntil: 0, wpFlashMsg: '',
     permDenied: false,
@@ -506,17 +506,25 @@ if (typeof module !== 'undefined') module.exports = CORE;
         { enableHighAccuracy: true, timeout: 15000, maximumAge: 10000 });
     });
   }
-  var oriAttached = false;
-  function startOrientation() {
-    if (SIM || oriAttached) return;
-    oriAttached = true;
-    var evName = ('ondeviceorientationabsolute' in window) ? 'deviceorientationabsolute' : 'deviceorientation';
-    window.addEventListener(evName, function (e) {
+  var oriAttached = false, lastAbsMs = 0;
+  function oriHandler(isAbs) {
+    return function (e) {
       var h = null;
       if (e.webkitCompassHeading != null) h = e.webkitCompassHeading;
       else if (e.alpha != null) h = (360 - e.alpha) % 360;   // 要実機検証(スパイク項目)
-      if (h != null) { S.heading = h; S.headingReal = Date.now(); scheduleArrow(); }
-    });
+      if (h == null) return;
+      var t = Date.now();
+      if (isAbs) lastAbsMs = t;
+      else if (t - lastAbsMs < 3000) return;               // absoluteが生きていればそちらを優先
+      S.heading = h; S.headingReal = t; scheduleArrow();
+    };
+  }
+  function startOrientation() {
+    if (SIM || oriAttached) return;
+    oriAttached = true;
+    // 環境によって発火するイベントが異なるため両方購読する
+    window.addEventListener('deviceorientationabsolute', oriHandler(true));
+    window.addEventListener('deviceorientation', oriHandler(false));
   }
 
   /* ================= 履歴ナビゲーション ================= */
@@ -660,9 +668,14 @@ if (typeof module !== 'undefined') module.exports = CORE;
     }
   }
   function wpFlash(msg) { S.wpFlashMsg = msg; S.wpFlashUntil = nowMs() + 8000; }
-  function manualWp() {                                  // main Enter: 手動補正
+  function manualWp() {                                  // 次WPパネルのEnter: 手動補正
     var w = nextWp();
-    if (w) { S.wpPassed[w.d] = true; wpFlash(w.n + ' 通過(手動)'); render(); }
+    if (!w) return;
+    var distTo = Math.max(0, w.d - S.along);
+    if (distTo > 500) {                                  // 誤ピンチでWPを消費しない
+      wpFlash(w.n + 'まで' + CORE.fmtKm(distTo) + ' (確認は500m以内)'); render(); return;
+    }
+    S.wpPassed[w.d] = true; wpFlash(w.n + ' 通過(手動)'); render();
   }
   function nextWp() {
     for (var i = 0; i < S.route.wps.length; i++) {
@@ -763,7 +776,10 @@ if (typeof module !== 'undefined') module.exports = CORE;
       S.wx = { t: Date.now() - 3 * 3600000, rows: rows };
       return;
     }
-    if (typeof fetch !== 'function' || (typeof navigator !== 'undefined' && navigator.onLine === false)) return;
+    // navigator.onLine はグラス(スマホ経由接続)で偽を返す可能性があるため見ない。常に試行して失敗は黙殺
+    if (typeof fetch !== 'function') return;
+    if (S.wxTriedMs && Date.now() - S.wxTriedMs < 60000) return;   // 60秒に1回まで
+    S.wxTriedMs = Date.now();
     var p = S.route.pts[0];
     var url = 'https://api.open-meteo.com/v1/forecast?latitude=' + p[0].toFixed(4) +
       '&longitude=' + p[1].toFixed(4) +
@@ -813,11 +829,11 @@ if (typeof module !== 'undefined') module.exports = CORE;
       return;
     }
     if (S.mode === 'main') {
-      if (k === 'ArrowLeft')  { S.panel = (S.panel + 2) % 3; render(); }
-      if (k === 'ArrowRight') { S.panel = (S.panel + 1) % 3; render(); }
+      if (k === 'ArrowLeft')  { S.panel = (S.panel + 2) % 3; if (S.panel === 2 && !S.wx) fetchWeather(); render(); }
+      if (k === 'ArrowRight') { S.panel = (S.panel + 1) % 3; if (S.panel === 2 && !S.wx) fetchWeather(); render(); }
       if (k === 'ArrowUp')    { S.theme = 'y'; applyTheme(); }
       if (k === 'ArrowDown')  { S.theme = 'w'; applyTheme(); }
-      if (k === 'Enter')  manualWp();
+      if (k === 'Enter' && S.panel === 1) manualWp();   // WP確認は次WPパネル表示中のみ
       if (k === 'Escape') goBack();                       // → 終了(popstateでdoneへ)
       return;
     }
@@ -1094,9 +1110,14 @@ if (typeof module !== 'undefined') module.exports = CORE;
       '<div class="abs ctr" style="top:460px"><span class="sub ' + (ageH >= 6 ? 'acc2' : 'dim') + '">' + ageH + '時間前 取得</span></div>';
   }
   function scrWarn() {
-    var d = S.dev ? Math.round(S.dev.state.dist) : 0;
-    return '<div class="abs ctr warn-line" style="top:56px"><div class="warn-title">ルート逸脱</div>' +
-      '<div class="warn-dist">' + d + '<span style="font-size:44px">m</span></div></div>' +
+    var d = S.dev ? S.dev.state.dist : 0;
+    var far = d > 2000;                                  // ルートから遠い=自宅等でのテストや範囲外
+    var dTxt = far ? CORE.fmtKm(d) : (Math.round(d) + '<span style="font-size:44px">m</span>');
+    return '<div class="abs ctr ' + (far ? '' : 'warn-line') + '" style="top:56px">' +
+      '<div class="warn-title' + (far ? ' acc2" style="color:#f5a11c' : '') + '">' +
+      (far ? 'ルート範囲外' : 'ルート逸脱') + '</div>' +
+      '<div class="warn-dist' + (far ? '" style="color:#f5a11c' : '') + '">' + dTxt + '</div></div>' +
+      (far ? '<div class="abs ctr" style="top:250px"><span class="sub dim">矢印はルート方向(直線)</span></div>' : '') +
       '<div class="abs z-arrow ctr" style="top:270px"><div class="arrow-wrap acc2" id="arw-wrap">' + arrowSvg('arw') + '</div>' +
       '<div class="arrow-lbl dim" id="arw-na" style="display:none">方位取得不可</div>' +
       '<div class="arrow-lbl acc2">復帰方向</div></div>' +
