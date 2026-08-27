@@ -1,0 +1,1080 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=600, height=600, initial-scale=1.0, user-scalable=no">
+<meta name="description" content="登山用グランスHUD。残距離・逸脱警告・日没カウントダウン・ETAを視界に表示する判断支援アプリ(地図は表示しない)。">
+<meta name="mrbd-web-app-capable" content="yes">
+<title>登山HUD</title>
+<style>
+/* 登山HUD — 開発ガイド実証パレット準拠
+   背景#000=透明 / 主#ffd83b / 文字#f5f1e6 / 非活性#6b675c / 警告#ff5a60 #f5a11c */
+html, body { background: #000; overflow: hidden; margin: 0; padding: 0; }
+body {
+  width: 600px; height: 600px; position: relative;
+  user-select: none; -webkit-user-select: none;
+  font-family: 'Courier New', ui-monospace, Menlo, monospace;
+  color: #f5f1e6; cursor: default;
+}
+#app { position: absolute; inset: 0; }
+
+/* ---- 共通 ---- */
+.dim    { color: #6b675c; }
+.main-c { color: #ffd83b; }
+.t-w .main-c { color: #f5f1e6; }   /* ↓で低輝度(白)モード */
+.acc1   { color: #ff5a60; }
+.acc2   { color: #f5a11c; }
+.ctr    { text-align: center; }
+.abs    { position: absolute; left: 0; right: 0; }
+
+/* ---- main HUD ゾーン ---- */
+.z-head  { top: 6px;  height: 26px; font-size: 18px; padding: 0 14px; }
+.z-arrow { top: 30px; height: 158px; }
+.z-big   { top: 192px; }
+.z-eta   { top: 366px; }
+.z-ct    { top: 466px; }
+.z-band  { bottom: 0; height: 52px; line-height: 52px; font-size: 21px;
+           text-align: center; }
+
+.big1 { font-size: 84px; font-weight: bold; line-height: 1.0; letter-spacing: -2px; }
+.big2 { font-size: 44px; font-weight: bold; margin-top: 6px; }
+.eta1 { font-size: 32px; }
+.eta2 { font-size: 24px; margin-top: 6px; }
+.ct1  { font-size: 24px; }
+.sub  { font-size: 18px; }
+
+.arrow-wrap { width: 150px; height: 150px; margin: 0 auto; position: relative; }
+.arrow-lbl  { font-size: 18px; }
+
+/* ---- 逸脱警告 ---- */
+.warn-line { border-top: 4px solid #ff5a60; border-bottom: 4px solid #ff5a60;
+             padding: 6px 0; animation: blink 1s step-end infinite; }
+@keyframes blink { 50% { border-color: #5a1114; } }
+.warn-title { font-size: 34px; font-weight: bold; color: #ff5a60; }
+.warn-dist  { font-size: 92px; font-weight: bold; color: #ff5a60; line-height: 1.05; }
+
+/* ---- select / ready / done / overlay ---- */
+.screen-title { font-size: 22px; letter-spacing: 4px; }
+.route-name { font-size: 34px; font-weight: bold; line-height: 1.25; }
+.stat-row   { font-size: 23px; line-height: 1.75; }
+.hint  { font-size: 19px; }
+.navlr { font-size: 46px; }
+.dots  { font-size: 22px; letter-spacing: 10px; }
+
+.overlay { position: absolute; inset: 0; background: #000; z-index: 5;
+           padding: 60px 44px 0; box-sizing: border-box; }
+.ov-title { font-size: 28px; font-weight: bold; }
+.ov-body  { font-size: 22px; line-height: 1.65; margin-top: 26px; }
+
+.frame { border: 2px solid #6b675c; border-radius: 6px; padding: 14px 18px; }
+</style>
+</head>
+<body>
+<div id="app"></div>
+<script>
+// 自動生成: tools/make_demo.py  ※デモルートは架空。実際の山行には gpx2route.py で自作ルートを同梱すること
+var ROUTES = [{"id":"demoA","name":"デモA 里山周回","dist":4623,"gain":412,"poly":"gjh_Fyv~hYUs@WyBMm@g@wA_ByD]i@qA{AeAaBY]wGsF]a@yC_G{@qB_BkC{@wBq@gAoB}BaDuByA}AaEcDa@SeBg@yBw@_ACgBFc@Ha@NkFxDyDbEYd@oAxCq@bAcApBcBrCSh@i@bCm@zBKj@c@xEAh@Dj@nAjGx@bCn@hCh@rAjAjBbAfBhAzAhAjBZ^\\ZjDrBnC|@fBv@bAPrCAfAMjBg@nBQb@IjBk@hBa@hBk@bEg@xE}A|A_A^OrF}@vCYjAa@rE]","ele":"sYCA@@ACOOEsAMaA[k@[Og@iAi@eAKe@e@KOEGw@a@E]GAF@BFDZD@NRXPV\\h@j@LJn@j@b@R`@Rd@j@L`@\\\\l@RJBZFHB","wps":[{"d":0,"n":"登山口","t":"start"},{"d":1294,"n":"水場","t":"water"},{"d":2311,"n":"山頂","t":"peak"},{"d":3421,"n":"東屋","t":"hut"},{"d":4623,"n":"登山口","t":"goal"}],"cts":[[0,0],[500,23],[1000,48],[1500,88],[2000,113],[2500,123],[3000,138],[3500,163],[4000,185],[4500,196],[4623,198]],"demo":true},{"id":"demoB","name":"デモB 尾根ピストン","dist":8456,"gain":778,"poly":"icq_F}mjiY_@g@eAkAqE}Jw@sAaB_BmBwByDeDa@SqBm@iBw@mBm@aBu@a@MmCM{Ek@oCw@sCWqEgAgCmAqCq@qDwA_Aq@uAyA{AgAkC{Cs@cAqAaD_DeE{BcBuAoAkEuBc@OmBc@mDcBqCo@iAO_FRkATyDnAiBbAgAb@wCNiACqF}Aa@U{CeC{BsBa@UiBo@_B{@sBw@}C_B_Ck@mAa@aD_BoAoAnAnA`D~AlA`@~Bj@|C~ArBv@~Az@hBn@`@TzBrBzCdC`@TpF|AhABvCOfAc@hBcAxDoAjAU~EShANpCn@lDbBlBb@b@NjEtBtAnAzBbB~CdEpA`Dr@bAjCzCzAfAtAxA~@p@pDvApCp@fClApEfArCVnCv@zEj@lCL`@L`Bt@lBl@hBv@pBl@`@RxDdDlBvB`B~Av@rApE|JdAjA^f@","ele":"me@ACEAEK]EOQQSGa@{@k@g@y@e@i@w@W_@_@s@Um@oAu@g@gAKa@{@o@U}@Og@UO_@Ow@E]UEOQOQIAABBDDFPLLLDNTDn@N`@PXl@RbAVr@|@`@H`A`@n@fAj@Tr@^b@V~@p@l@z@f@d@v@ZDPLLLB\\PHDPD@","wps":[{"d":0,"n":"登山口","t":"start"},{"d":2537,"n":"鎖場下","t":"wp"},{"d":4228,"n":"山頂","t":"peak"},{"d":5919,"n":"鎖場下","t":"wp"},{"d":8456,"n":"登山口","t":"goal"}],"cts":[[0,0],[500,15],[1000,41],[1500,70],[2000,104],[2500,140],[3000,172],[3500,198],[4000,216],[4500,224],[5000,237],[5500,256],[6000,284],[6500,302],[7000,328],[7500,348],[8000,362],[8456,370]],"demo":true},{"id":"demoC","name":"デモC 三峰縦走","dist":10097,"gain":1051,"poly":"ajh_F}v~hY]c@qBoDaAmDgCcGoBwC}AuCgDmDeCyAuBsB{DmCeCu@_Bu@_@KwDOiAPoBn@qBZqBd@uCVmBZe@AeAUeC{@}B_BgBy@_@WuDkDoAcB][{B}AmBqBs@}@y@oB}AgCQc@yAcEm@oDOi@yBiF_AiBaA_DSc@iAiBcAmBiAgBiAaDkCyEcB_CsAuCeC}C{@w@_BgAqBwByDmCaCgAsAoA_Ao@iDcBqCi@gBs@kCq@cA]a@KkBUa@K_@Q{CuBmBwB}AmA[]kCyEoA{CcBcC_CyEo@{BwAuCQi@oAoEKk@]iCMk@w@{Bq@aCu@sBu@kDQg@gCaFkAiBoA}CWa@yC_EoAuAeAeBu@{@uCyBeCgAyBaBwI{DmBmByAkAuAuA}BcBgBgCqA{As@aAY]wBcBoCaEwAoCiAeBc@kAgAmEq@iDy@sBaAeDsBcFUa@oBwBuCiEaAoBWa@qA}AWc@gBuDQe@k@yBQg@eAmBy@qB_AiB_A{CyAiC{B_FOi@e@eCgA_Dq@eCy@gCe@yCa@cBaBcFwA_Ds@yCm@wA_@eA","ele":"_a@AMO]]c@cAs@w@uA}@o@OuAa@s@s@s@_Ak@M[s@o@_@Ky@UGUOCC??BD@TLVDRTRZd@VXXHJH?GIGYWUa@QI_@IIw@i@]Iu@a@a@k@QSCM?C??@BD@PLRDb@NNHTLJNCEKSUSKE[g@]SO]SIGA@Hd@\\Jf@LtARz@T`AbAbA|A|AlCVdAzA~@z@t@`@`Ah@\\LF","wps":[{"d":0,"n":"西登山口","t":"start"},{"d":2221,"n":"一ノ峰","t":"peak"},{"d":3635,"n":"鞍部の小屋 [撤退路]","t":"escape"},{"d":5251,"n":"二ノ峰","t":"peak"},{"d":6664,"n":"水場","t":"water"},{"d":8280,"n":"三ノ峰","t":"peak"},{"d":10097,"n":"東登山口","t":"goal"}],"cts":[[0,0],[500,21],[1000,60],[1500,108],[2000,145],[2500,160],[3000,172],[3500,191],[4000,201],[4500,226],[5000,258],[5500,278],[6000,288],[6500,304],[7000,313],[7500,333],[8000,356],[8500,370],[9000,404],[9500,445],[10000,469],[10097,471]],"demo":true}];
+</script>
+<script>
+/* ============================================================
+ * core.js — 登山HUD 純ロジック層 (DOM依存なし / nodeでテスト可)
+ * ============================================================ */
+var CORE = (function () {
+  'use strict';
+  var R = 6371000;
+  var D2R = Math.PI / 180, R2D = 180 / Math.PI;
+
+  /* ---------- polyline ---------- */
+  function decodeDeltas(str) {
+    var out = [], i = 0, v = 0, shift = 0;
+    while (i < str.length) {
+      var b = str.charCodeAt(i++) - 63;
+      v |= (b & 0x1f) << shift; shift += 5;
+      if (b < 0x20) {
+        out.push((v & 1) ? ~(v >> 1) : (v >> 1));
+        v = 0; shift = 0;
+      }
+    }
+    return out;
+  }
+  function decodePoly(str) {
+    var d = decodeDeltas(str), pts = [], la = 0, lo = 0;
+    for (var i = 0; i + 1 < d.length; i += 2) {
+      la += d[i]; lo += d[i + 1];
+      pts.push([la / 1e5, lo / 1e5]);
+    }
+    return pts;
+  }
+  function decodeEle(str) {
+    var d = decodeDeltas(str), out = [], e = 0;
+    for (var i = 0; i < d.length; i++) { e += d[i]; out.push(e); }
+    return out;
+  }
+
+  /* ---------- 測地 ---------- */
+  function hav(a, b) { // [la,lo] m
+    var la1 = a[0] * D2R, la2 = b[0] * D2R;
+    var dla = (b[0] - a[0]) * D2R, dlo = (b[1] - a[1]) * D2R;
+    var h = Math.sin(dla / 2) * Math.sin(dla / 2) +
+            Math.cos(la1) * Math.cos(la2) * Math.sin(dlo / 2) * Math.sin(dlo / 2);
+    return 2 * R * Math.asin(Math.sqrt(h));
+  }
+  function bearing(a, b) { // 真北基準 0-360
+    var la1 = a[0] * D2R, la2 = b[0] * D2R, dlo = (b[1] - a[1]) * D2R;
+    var y = Math.sin(dlo) * Math.cos(la2);
+    var x = Math.cos(la1) * Math.sin(la2) - Math.sin(la1) * Math.cos(la2) * Math.cos(dlo);
+    return (Math.atan2(y, x) * R2D + 360) % 360;
+  }
+  function destPoint(la, lo, brg, distM) { // sim用
+    var d = distM / R, t = brg * D2R, f1 = la * D2R, l1 = lo * D2R;
+    var f2 = Math.asin(Math.sin(f1) * Math.cos(d) + Math.cos(f1) * Math.sin(d) * Math.cos(t));
+    var l2 = l1 + Math.atan2(Math.sin(t) * Math.sin(d) * Math.cos(f1),
+                             Math.cos(d) - Math.sin(f1) * Math.sin(f2));
+    return [f2 * R2D, ((l2 * R2D) + 540) % 360 - 180];
+  }
+
+  /* ---------- ルート構築 ---------- */
+  function buildRoute(r) {
+    var ll = decodePoly(r.poly), el = decodeEle(r.ele);
+    var pts = [], cum = [0], gcum = [0];
+    for (var i = 0; i < ll.length; i++) pts.push([ll[i][0], ll[i][1], el[i] || 0]);
+    for (i = 1; i < pts.length; i++) {
+      cum.push(cum[i - 1] + hav(pts[i - 1], pts[i]));
+      var de = pts[i][2] - pts[i - 1][2];
+      gcum.push(gcum[i - 1] + (de > 0 ? de : 0));
+    }
+    return {
+      id: r.id, name: r.name, demo: !!r.demo,
+      pts: pts, cum: cum, gcum: gcum,
+      total: cum[cum.length - 1], gainTotal: gcum[gcum.length - 1],
+      wps: r.wps || [], cts: r.cts || null,
+      ctTotal: r.cts ? r.cts[r.cts.length - 1][1] : null
+    };
+  }
+
+  /* ---------- 射影(マップマッチング) ---------- */
+  // 局所平面近似で点—線分最近傍。戻り値 dist は m。
+  function projSeg(p, a, b) {
+    var k = Math.cos(a[0] * D2R);
+    var px = (p[1] - a[1]) * k * 111320, py = (p[0] - a[0]) * 110540;
+    var bx = (b[1] - a[1]) * k * 111320, by = (b[0] - a[0]) * 110540;
+    var L2 = bx * bx + by * by, t = 0;
+    if (L2 > 0) t = Math.max(0, Math.min(1, (px * bx + py * by) / L2));
+    var dx = px - t * bx, dy = py - t * by;
+    return { t: t, dist: Math.sqrt(dx * dx + dy * dy) };
+  }
+  // prevAlong があれば「進行の連続性」でスコアリング:
+  //   後退は 0.03/m、前進は 0.005/m のペナルティ。
+  // 往路復路が同一線形のピストンでは最近傍距離が同点になるため、
+  // 折り返し後に往路へ張り付いたまま along が逆走するのを防ぐ。
+  function projectRange(route, la, lo, i0, i1, prevAlong) {
+    var p = [la, lo], best = null;
+    i0 = Math.max(0, i0); i1 = Math.min(route.pts.length - 2, i1);
+    for (var i = i0; i <= i1; i++) {
+      var r = projSeg(p, route.pts[i], route.pts[i + 1]);
+      var segLen = route.cum[i + 1] - route.cum[i];
+      var along = route.cum[i] + segLen * r.t;
+      var score = r.dist;
+      if (prevAlong != null) {
+        var d = along - prevAlong;
+        score += (d < 0) ? -d * 0.03 : d * 0.005;
+      }
+      if (!best || score < best.score) {
+        best = { seg: i, t: r.t, dist: r.dist, along: along, score: score };
+      }
+    }
+    return best;
+  }
+  // 単調マッチング: 前回セグメント(cursor)近傍を優先。ピストン/ループの
+  // 復路・自己接近で反対側の脚に飛ぶのを防ぐ。少しの後戻り(-15)は許容。
+  function matchLocal(route, cursor, la, lo, prevAlong) {
+    if (cursor == null || cursor < 0) return projectRange(route, la, lo, 0, 1e9, prevAlong);
+    var r = projectRange(route, la, lo, cursor - 15, cursor + 40, prevAlong);
+    if (r && r.dist > 120) {
+      var w = projectRange(route, la, lo, cursor - 60, cursor + 150, prevAlong);
+      if (w && w.score < r.score) r = w;
+    }
+    return r;
+  }
+
+  /* ---------- 残距離・残標高(ルートプロファイル基準。GPS高度は使わない) ---------- */
+  function interp(xs_ys, x, xi, yi) { // 単調xs前提
+    var a = xs_ys, n = a.length;
+    if (x <= a[0][xi]) return a[0][yi];
+    for (var i = 1; i < n; i++) {
+      if (x <= a[i][xi]) {
+        var f = (x - a[i - 1][xi]) / Math.max(a[i][xi] - a[i - 1][xi], 1e-9);
+        return a[i - 1][yi] + f * (a[i][yi] - a[i - 1][yi]);
+      }
+    }
+    return a[n - 1][yi];
+  }
+  function gainAt(route, along) {
+    var c = route.cum, g = route.gcum, n = c.length;
+    if (along <= 0) return 0;
+    for (var i = 1; i < n; i++) {
+      if (along <= c[i]) {
+        var f = (along - c[i - 1]) / Math.max(c[i] - c[i - 1], 1e-9);
+        return g[i - 1] + f * (g[i] - g[i - 1]);
+      }
+    }
+    return g[n - 1];
+  }
+  function remaining(route, along) {
+    return {
+      dist: Math.max(0, route.total - along),
+      gain: Math.max(0, route.gainTotal - gainAt(route, along))
+    };
+  }
+  function routePointAt(route, along) { // sim/矢印目標用
+    var c = route.cum, p = route.pts, n = c.length;
+    if (along <= 0) return { la: p[0][0], lo: p[0][1], seg: 0 };
+    for (var i = 1; i < n; i++) {
+      if (along <= c[i]) {
+        var f = (along - c[i - 1]) / Math.max(c[i] - c[i - 1], 1e-9);
+        return {
+          la: p[i - 1][0] + f * (p[i][0] - p[i - 1][0]),
+          lo: p[i - 1][1] + f * (p[i][1] - p[i - 1][1]),
+          seg: i - 1
+        };
+      }
+    }
+    return { la: p[n - 1][0], lo: p[n - 1][1], seg: n - 2 };
+  }
+
+  /* ---------- CT・ETA ---------- */
+  function ctAt(route, along) {
+    if (!route.cts) return null;
+    return interp(route.cts, along, 0, 1);
+  }
+  // ETA(残り分)。主: 残りCT×実績CT比 / 従: 実測ペース
+  function etaRemainMin(route, along, elapsedMovingMin, emaKmh) {
+    var rem = remaining(route, along);
+    if (route.cts && along > 400 && elapsedMovingMin > 8) {
+      var done = ctAt(route, along);
+      if (done > 5) {
+        var ratio = elapsedMovingMin / done;
+        ratio = Math.max(0.4, Math.min(3, ratio));
+        return { min: (route.ctTotal - done) * ratio, method: 'ct', ratio: ratio };
+      }
+    }
+    if (emaKmh > 0.2) {
+      return { min: (rem.dist / 1000) / emaKmh * 60, method: 'pace', ratio: null };
+    }
+    if (route.cts) {
+      return { min: route.ctTotal - (ctAt(route, along) || 0), method: 'ct0', ratio: 1 };
+    }
+    return { min: null, method: 'none', ratio: null };
+  }
+
+  /* ---------- 日没 (NOAA式・オフライン) ---------- */
+  function sunEventUTC(dateUTCms, lat, lng, rise) {
+    // dateUTCms: その日の00:00UTC。戻り値: UTC分(その日基準)。極夜/白夜はnull
+    function calc(tMin) {
+      var d = new Date(dateUTCms);
+      var start = Date.UTC(d.getUTCFullYear(), 0, 0);
+      var doy = (dateUTCms - start) / 86400000;
+      var g = 2 * Math.PI / 365 * (doy - 1 + (tMin / 60 - 12) / 24);
+      var eq = 229.18 * (0.000075 + 0.001868 * Math.cos(g) - 0.032077 * Math.sin(g)
+              - 0.014615 * Math.cos(2 * g) - 0.040849 * Math.sin(2 * g));
+      var decl = 0.006918 - 0.399912 * Math.cos(g) + 0.070257 * Math.sin(g)
+               - 0.006758 * Math.cos(2 * g) + 0.000907 * Math.sin(2 * g)
+               - 0.002697 * Math.cos(3 * g) + 0.00148 * Math.sin(3 * g);
+      var latR = lat * D2R;
+      var cosHA = Math.cos(90.833 * D2R) / (Math.cos(latR) * Math.cos(decl))
+                - Math.tan(latR) * Math.tan(decl);
+      if (cosHA < -1 || cosHA > 1) return null;
+      var ha = Math.acos(cosHA) * R2D;
+      return 720 - 4 * (lng + (rise ? ha : -ha)) - eq;
+    }
+    var t = calc(720);
+    if (t === null) return null;
+    var t2 = calc(t);
+    return (t2 === null) ? t : t2;
+  }
+  function sunTimes(lat, lng, now) {
+    var day = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate());
+    function mk(ms, rise) {
+      var m = sunEventUTC(ms, lat, lng, rise);
+      return m === null ? null : new Date(ms + m * 60000);
+    }
+    var set = mk(day, false);
+    if (set && set.getTime() < now.getTime() - 6 * 3600000) set = mk(day + 86400000, false);
+    return { sunrise: mk(day, true), sunset: set };
+  }
+
+  /* ---------- 逸脱FSM ---------- */
+  // 判定: dist>trig が need回連続 → 逸脱 / dist<clear で解除(ヒステリシス)
+  // accuracy>accMax の測位はカウントに使わない(進めも戻しもしない)
+  function createDevFSM(o) {
+    o = o || {};
+    var trig = o.trig || 50, clear = o.clear || 35,
+        need = o.need || 3, accMax = o.accMax || 75;
+    var s = { deviated: false, cnt: 0, dist: 0 };
+    return {
+      state: s,
+      step: function (dist, acc) {
+        if (acc != null && acc > accMax) return s; // 低精度は無視
+        s.dist = dist;
+        if (!s.deviated) {
+          if (dist > trig) { s.cnt++; if (s.cnt >= need) s.deviated = true; }
+          else s.cnt = 0;
+        } else if (dist < clear) {
+          s.deviated = false; s.cnt = 0;
+        }
+        return s;
+      },
+      reset: function () { s.deviated = false; s.cnt = 0; s.dist = 0; }
+    };
+  }
+
+  /* ---------- 表示整形 ---------- */
+  function fmtKm(m) {
+    if (m == null) return '--';
+    return m >= 1000 ? (m / 1000).toFixed(1) + 'km' : Math.round(m) + 'm';
+  }
+  function fmtClock(d) {
+    if (!d) return '--:--';
+    var h = d.getHours(), m = d.getMinutes();
+    return h + ':' + (m < 10 ? '0' : '') + m;
+  }
+  function fmtDur(min) {
+    if (min == null) return '--';
+    min = Math.round(min);
+    var h = Math.floor(min / 60), m = min % 60;
+    return h > 0 ? h + ':' + (m < 10 ? '0' : '') + m : m + '分';
+  }
+  function fmtDiff(min) {
+    if (min == null) return '--';
+    var r = Math.round(min);
+    return (r >= 0 ? '+' : '−') + Math.abs(r) + '分';
+  }
+
+  return {
+    decodePoly: decodePoly, decodeEle: decodeEle,
+    hav: hav, bearing: bearing, destPoint: destPoint,
+    buildRoute: buildRoute,
+    projectRange: projectRange, matchLocal: matchLocal,
+    remaining: remaining, gainAt: gainAt, routePointAt: routePointAt,
+    ctAt: ctAt, etaRemainMin: etaRemainMin,
+    sunTimes: sunTimes,
+    createDevFSM: createDevFSM,
+    fmtKm: fmtKm, fmtClock: fmtClock, fmtDur: fmtDur, fmtDiff: fmtDiff
+  };
+})();
+if (typeof module !== 'undefined') module.exports = CORE;
+</script>
+<script>
+/* ============================================================
+ * app.js — 登山HUD アプリ層
+ *   モード: disclaimer → (resume) → select → ready → main ⇄ warn → done
+ *   ナビゲーション: 公式仕様に合わせ pushState/popstate で管理
+ *   (バックジェスチャー=シェルが history.back() を呼ぶ。エントリ上限5)
+ * ============================================================ */
+(function () {
+  'use strict';
+
+  var SIM = /[?&]sim=1/.test(location.search);
+
+  /* ---------------- 状態(単一オブジェクト) ---------------- */
+  var S = {
+    mode: 'disclaimer',
+    routeIdx: 0, route: null,
+    panel: 0,                 // 0進捗 1次WP 2天気
+    theme: 'y',               // y=黄(高輝度) w=白
+    perm: '', starting: false,
+    tracking: false,
+    startMs: 0, movingMin: 0, stopMin: 0,
+    lastFix: null, lastFixReal: 0,
+    cursor: null, along: 0, maxAlong: 0, proj: null,
+    emaKmh: 0, moving: true, lastMoveMs: 0,
+    dev: null, suppressUntil: 0, graceUntil: 0,
+    heading: null, headingReal: 0,
+    sun: null, sunNotice: false,
+    wx: null,
+    track: [], lastTrackMs: 0,
+    wpPassed: {}, wpFlashUntil: 0, wpFlashMsg: '',
+    permDenied: false,
+    finished: null,
+    resumeData: null
+  };
+  var BUILT = ROUTES.map(CORE.buildRoute);
+
+  /* ---------------- 時刻(simは加速クロック) ---------------- */
+  var simClockOff = 0;
+  function nowMs() { return Date.now() + simClockOff; }
+  function nowDate() { return new Date(nowMs()); }
+
+  /* ---------------- localStorage(常にtry-catch) ---------------- */
+  function lsGet(k) { try { var v = localStorage.getItem(k); return v ? JSON.parse(v) : null; } catch (e) { return null; } }
+  function lsSet(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} }
+  function lsDel(k) { try { localStorage.removeItem(k); } catch (e) {} }
+
+  /* ================= Geo抽象化(実機 / sim) ================= */
+  var Geo = (function () {
+    var watchId = null;
+    var sim = {
+      running: false, timer: null,
+      along: 0, mul: 20, offset: 0, paused: false,
+      lostUntil: 0, degraded: false, teleport: false,
+      mps: 1.0
+    };
+    function gauss() { var s = 0; for (var i = 0; i < 6; i++) s += Math.random(); return (s - 3) / 3; }
+
+    function simTick(cb) {
+      var realNow = Date.now();
+      if (sim.lostUntil > realNow) return;             // GPS喪失注入
+      var dt = 1 * sim.mul;                             // sim秒
+      simClockOff += (dt - 1) * 1000;                   // simクロック加速
+      if (!sim.paused) sim.along = Math.min(S.route.total, sim.along + sim.mps * dt);
+      var p = CORE.routePointAt(S.route, sim.along);
+      var pos = [p.la, p.lo];
+      if (sim.offset) {                                 // 逸脱注入(進行方向と直交)
+        var ahead = CORE.routePointAt(S.route, Math.min(S.route.total, sim.along + 30));
+        var brg = CORE.bearing(pos, [ahead.la, ahead.lo]);
+        pos = CORE.destPoint(pos[0], pos[1], (brg + 90) % 360, sim.offset);
+      }
+      var sigma = sim.degraded ? 35 : 6;
+      var acc = sim.degraded ? 90 + Math.random() * 40 : 8 + Math.random() * 14;
+      if (sim.teleport) { sim.teleport = false; pos = CORE.destPoint(pos[0], pos[1], Math.random() * 360, 400); acc = 15; }
+      pos = CORE.destPoint(pos[0], pos[1], Math.random() * 360, Math.abs(gauss()) * sigma);
+      // 方位: 進行方向+ゆらぎ
+      var ah2 = CORE.routePointAt(S.route, Math.min(S.route.total, sim.along + 40));
+      S.heading = (CORE.bearing([p.la, p.lo], [ah2.la, ah2.lo]) + gauss() * 8 + 360) % 360;
+      S.headingReal = Date.now();
+      cb({ la: pos[0], lo: pos[1], acc: acc, t: nowMs() });
+    }
+
+    return {
+      sim: sim,
+      start: function (cb, errCb) {
+        if (SIM) {
+          sim.running = true;
+          sim.mps = S.route.total / (S.route.ctTotal * 60) * 1.05; // CTよりやや速く
+          sim.timer = setInterval(function () { simTick(cb); }, 1000);
+          return;
+        }
+        if (!navigator.geolocation) { errCb({ code: 2, message: 'no geolocation' }); return; }
+        watchId = navigator.geolocation.watchPosition(
+          function (pos) {
+            cb({ la: pos.coords.latitude, lo: pos.coords.longitude,
+                 acc: pos.coords.accuracy, t: pos.timestamp || Date.now() });
+          },
+          errCb,
+          { enableHighAccuracy: true, timeout: 15000, maximumAge: 3000 }
+        );
+      },
+      once: function (cb) {                              // 再点灯時の即時判定用
+        if (SIM) return;
+        if (!navigator.geolocation) return;
+        navigator.geolocation.getCurrentPosition(function (pos) {
+          cb({ la: pos.coords.latitude, lo: pos.coords.longitude,
+               acc: pos.coords.accuracy, t: pos.timestamp || Date.now() });
+        }, function () {}, { enableHighAccuracy: true, timeout: 8000, maximumAge: 10000 });
+      },
+      stop: function () {
+        if (sim.timer) { clearInterval(sim.timer); sim.timer = null; sim.running = false; }
+        if (watchId != null && navigator.geolocation) { navigator.geolocation.clearWatch(watchId); watchId = null; }
+      }
+    };
+  })();
+
+  /* ================= 権限(公式: ユーザージェスチャー起点 / pushState前に解決) ================= */
+  function ensureSensors() {
+    return new Promise(function (res) {
+      if (SIM) { res(); return; }
+      try {
+        if (typeof DeviceOrientationEvent !== 'undefined' &&
+            typeof DeviceOrientationEvent.requestPermission === 'function') {
+          DeviceOrientationEvent.requestPermission().then(function () { res(); }, function () { res(); });
+        } else res();
+      } catch (e) { res(); }
+    });
+  }
+  function ensureGeo() {
+    return new Promise(function (res, rej) {
+      if (SIM) { res(null); return; }
+      if (!navigator.geolocation) { rej({ code: 2 }); return; }
+      navigator.geolocation.getCurrentPosition(
+        function (pos) { res({ la: pos.coords.latitude, lo: pos.coords.longitude, acc: pos.coords.accuracy, t: Date.now() }); },
+        function (err) { rej(err); },
+        { enableHighAccuracy: true, timeout: 15000, maximumAge: 10000 });
+    });
+  }
+  function startOrientation() {
+    if (SIM) return;
+    var evName = ('ondeviceorientationabsolute' in window) ? 'deviceorientationabsolute' : 'deviceorientation';
+    window.addEventListener(evName, function (e) {
+      var h = null;
+      if (e.webkitCompassHeading != null) h = e.webkitCompassHeading;
+      else if (e.alpha != null) h = (360 - e.alpha) % 360;   // 要実機検証(スパイク項目)
+      if (h != null) { S.heading = h; S.headingReal = Date.now(); scheduleArrow(); }
+    });
+  }
+
+  /* ================= 履歴ナビゲーション ================= */
+  var backFlag = '';   // 'suppress' | 'auto' | ''
+  function goBack(flag) { backFlag = flag || ''; try { history.back(); } catch (e) {} }
+
+  function initHistory() { try { history.replaceState({ s: 'select' }, ''); } catch (e) {} }
+  function pushScreen(s) { try { history.pushState({ s: s }, ''); } catch (e) {} }
+
+  window.addEventListener('popstate', function (e) {
+    var target = (e.state && e.state.s) || 'select';
+    var from = S.mode;
+    if (from === 'warn' && target === 'main') {
+      // 手動クローズ(戻る)で逸脱継続中 → 60秒は再警告しない
+      if (backFlag === '' && S.dev && S.dev.state.deviated) S.graceUntil = nowMs() + 60000;
+      backFlag = '';
+      S.mode = 'main'; render(); return;
+    }
+    if (target === 'ready' && S.tracking) {              // main から戻る = 山行終了
+      finishHike();
+      try { history.replaceState({ s: 'done' }, ''); } catch (e2) {}
+      S.mode = 'done'; render(); return;
+    }
+    if (target === 'ready') { S.mode = 'ready'; render(); return; }
+    // select(root) へ
+    resetToSelect(); render();
+  });
+
+  /* ================= トラッキング ================= */
+  function beginStart(restore) {
+    if (S.starting) return;
+    S.starting = true;
+    S.perm = '位置情報とセンサーの許可を確認中…'; render();
+    ensureSensors().then(ensureGeo).then(function (fix) {
+      S.perm = ''; S.starting = false;
+      if (restore) pushScreen('ready');                  // 再開: select→(ready)→main を積む
+      startTracking(fix, restore);
+    }, function (err) {
+      S.starting = false;
+      S.perm = (err && err.code === 1) ? '位置情報が許可されませんでした。グラスの設定から許可してください'
+                                       : '位置情報を取得できません(スマホ側のGPSを確認)';
+      render();
+    });
+  }
+
+  function startTracking(firstFix, restore) {
+    pushScreen('main');                                   // ←権限解決後にpushState(公式の既知問題対策)
+    S.mode = 'main'; S.tracking = true;
+    if (!restore) {
+      S.startMs = nowMs(); S.movingMin = 0; S.stopMin = 0;
+      S.track = []; S.wpPassed = {}; S.along = 0; S.maxAlong = 0;
+      S.cursor = null; S.emaKmh = 0;
+    }
+    S.dev = CORE.createDevFSM({ trig: 50, clear: 35, need: 3, accMax: 75 });
+    S.lastMoveMs = nowMs(); S.moving = true;
+    S.sun = CORE.sunTimes(S.route.pts[0][0], S.route.pts[0][1], nowDate());
+    Geo.start(onFix, onGeoErr);
+    startOrientation();
+    if (firstFix) onFix(firstFix);
+    startTicker();
+    render();
+  }
+
+  function onGeoErr(err) {
+    if (err && err.code === 1) { S.permDenied = true; }
+    // それ以外は鮮度監視(⑤帯)に任せる — 沈黙しない方針
+  }
+
+  function onFix(f) {
+    var prev = S.lastFix;
+    S.lastFix = f; S.lastFixReal = Date.now();
+    if (f.acc != null && f.acc > 75) { return; }         // 低精度は生存確認のみ(F2/判定不使用)
+    var m = CORE.matchLocal(S.route, S.cursor, f.la, f.lo, S.along); // 初回もalong=0起点でバイアス(ピストンの往復同一線形対策)
+    if (!m) return;
+    S.cursor = m.seg; S.proj = m;
+    S.along = m.along;
+    if (m.along > S.maxAlong) S.maxAlong = m.along;
+    // 速度・移動判定
+    if (prev && prev.acc <= 75) {
+      var dt = (f.t - prev.t) / 1000;
+      if (dt >= 1 && dt <= 180) {
+        var v = CORE.hav([prev.la, prev.lo], [f.la, f.lo]) / dt;   // m/s
+        if (v > 0.3) S.lastMoveMs = nowMs();
+        if (v > 0.2 && v < 3.5) {
+          var kmh = v * 3.6;
+          S.emaKmh = S.emaKmh ? (0.85 * S.emaKmh + 0.15 * kmh) : kmh;
+        }
+      }
+    }
+    S.dev.step(m.dist, f.acc);
+    checkWpAuto(f);
+    evalWarn();
+  }
+
+  function checkWpAuto(f) {                              // W3: 半径30mで自動通過
+    for (var i = 0; i < S.route.wps.length; i++) {
+      var w = S.route.wps[i];
+      if (S.wpPassed[w.d]) continue;
+      var p = CORE.routePointAt(S.route, w.d);
+      if (CORE.hav([f.la, f.lo], [p.la, p.lo]) < 30) {
+        S.wpPassed[w.d] = true;
+        wpFlash(w.n + ' 通過');
+      }
+    }
+  }
+  function wpFlash(msg) { S.wpFlashMsg = msg; S.wpFlashUntil = nowMs() + 8000; }
+  function manualWp() {                                  // main Enter: 手動補正
+    var w = nextWp();
+    if (w) { S.wpPassed[w.d] = true; wpFlash(w.n + ' 通過(手動)'); render(); }
+  }
+  function nextWp() {
+    for (var i = 0; i < S.route.wps.length; i++) {
+      var w = S.route.wps[i];
+      if (!S.wpPassed[w.d] && w.d > 40) return w;
+    }
+    return null;
+  }
+
+  function evalWarn() {
+    if (!S.tracking || !S.dev) return;
+    var d = S.dev.state.deviated;
+    var t = nowMs();
+    if (d && S.mode === 'main' && t >= S.suppressUntil && t >= S.graceUntil) {
+      pushScreen('warn'); S.mode = 'warn'; render();
+    } else if (!d && S.mode === 'warn') {
+      goBack('auto');                                    // 復帰で自動解除
+    }
+  }
+
+  function finishHike() {
+    Geo.stop(); stopTicker();
+    S.tracking = false;
+    var elapsed = (nowMs() - S.startMs) / 60000;
+    var ctDone = CORE.ctAt(S.route, S.maxAlong);
+    S.finished = {
+      dist: S.maxAlong, elapsed: elapsed,
+      moving: S.movingMin, stop: S.stopMin,
+      ctRatio: (ctDone && ctDone > 10) ? (S.movingMin / ctDone) : null
+    };
+    lsDel('thud.active');
+    lsSet('thud.lastResult', { routeId: S.route.id, at: Date.now(), sum: S.finished });
+  }
+
+  function resetToSelect() {
+    Geo.stop(); stopTicker();
+    S.mode = 'select'; S.tracking = false; S.finished = null;
+    S.perm = ''; S.starting = false; S.panel = 0;
+    if (S.dev) S.dev.reset();
+    S.suppressUntil = 0; S.graceUntil = 0;
+  }
+
+  /* ================= 定期処理(1Hz) ================= */
+  var ticker = null, lastTickMs = 0;
+  function startTicker() { if (!ticker) { lastTickMs = nowMs(); ticker = setInterval(tick, 1000); } }
+  function stopTicker() { if (ticker) { clearInterval(ticker); ticker = null; } }
+
+  function tick() {
+    if (S.mode !== 'main' && S.mode !== 'warn') return;  // 非アクティブ時は進行停止(ガイド準拠)
+    var t = nowMs();
+    var dtMin = Math.min((t - lastTickMs) / 60000, 5);   // 復帰直後の巨大dtを抑制
+    lastTickMs = t;
+    S.moving = (t - S.lastMoveMs) < 90000;
+    if (S.moving) S.movingMin += dtMin; else S.stopMin += dtMin;
+    // トラック記録(F8: 60秒ごと)
+    if (S.lastFix && t - S.lastTrackMs >= 60000) {
+      S.lastTrackMs = t;
+      S.track.push([Math.round(t / 1000), +S.lastFix.la.toFixed(5), +S.lastFix.lo.toFixed(5)]);
+      saveActive();
+    }
+    // 日没90分前通知(1回)
+    if (S.sun && S.sun.sunset && !S.sunNotice) {
+      var remMin = (S.sun.sunset.getTime() - t) / 60000;
+      if (remMin > 0 && remMin <= 90) { S.sunNotice = true; wpFlash('日没90分前 ヘッデン準備'); }
+    }
+    evalWarn();
+    render();
+  }
+
+  function saveActive() {
+    lsSet('thud.active', {
+      routeId: S.route.id, startMs: S.startMs, savedAt: Date.now(),
+      movingMin: S.movingMin, stopMin: S.stopMin,
+      along: S.along, maxAlong: S.maxAlong, cursor: S.cursor,
+      wpPassed: S.wpPassed, track: S.track.slice(-600), emaKmh: S.emaKmh
+    });
+  }
+
+  /* ================= 再点灯・復帰時の即時判定(プル型F4) ================= */
+  function wakeCheck() {
+    if (!S.tracking) return;
+    lastTickMs = nowMs();
+    Geo.once(function (f) { onFix(f); render(); });
+    render();
+  }
+  document.addEventListener('visibilitychange', function () {
+    if (document.visibilityState === 'visible') wakeCheck();
+  });
+  window.addEventListener('pageshow', wakeCheck);
+
+  /* ================= 天気キャッシュ(W2) ================= */
+  function fetchWeather() {
+    var key = 'thud.wx.' + S.route.id;
+    S.wx = lsGet(key);
+    if (SIM && !S.wx) {                                  // simはダミー投入
+      var rows = [], base = nowDate().getHours();
+      for (var i = 0; i < 4; i++) rows.push({ h: (base + i * 3) % 24, temp: 18 - i, pp: [10, 20, 40, 60][i] });
+      S.wx = { t: Date.now() - 3 * 3600000, rows: rows };
+      return;
+    }
+    if (typeof fetch !== 'function' || (typeof navigator !== 'undefined' && navigator.onLine === false)) return;
+    var p = S.route.pts[0];
+    var url = 'https://api.open-meteo.com/v1/forecast?latitude=' + p[0].toFixed(4) +
+      '&longitude=' + p[1].toFixed(4) +
+      '&hourly=temperature_2m,precipitation_probability&forecast_hours=12&timezone=auto';
+    try {
+      fetch(url).then(function (r) { return r.json(); }).then(function (j) {
+        if (!j || !j.hourly) return;
+        var rows = [];
+        for (var i = 0; i < j.hourly.time.length && rows.length < 4; i += 3) {
+          rows.push({ h: parseInt(j.hourly.time[i].slice(11, 13), 10),
+                      temp: Math.round(j.hourly.temperature_2m[i]),
+                      pp: j.hourly.precipitation_probability[i] });
+        }
+        S.wx = { t: Date.now(), rows: rows };
+        lsSet(key, S.wx); render();
+      })['catch'](function () {});
+    } catch (e) {}
+  }
+
+  /* ================= 入力 ================= */
+  var KEYS = ['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Enter', 'Escape'];
+  window.addEventListener('keydown', function (e) {
+    var k = e.key;
+    if (SIM && handleSimKey(k)) { e.preventDefault(); return; }
+    if (KEYS.indexOf(k) < 0) return;
+    e.preventDefault();
+
+    if (S.mode === 'disclaimer') {
+      if (k === 'Enter' || k === 'Escape') afterDisclaimer();
+      return;
+    }
+    if (S.mode === 'resume') {
+      if (k === 'Enter') { doResume(); }
+      if (k === 'Escape') { lsDel('thud.active'); S.resumeData = null; S.mode = 'select'; render(); }
+      return;
+    }
+    if (S.mode === 'select') {
+      if (k === 'ArrowLeft')  { S.routeIdx = (S.routeIdx + BUILT.length - 1) % BUILT.length; render(); }
+      if (k === 'ArrowRight') { S.routeIdx = (S.routeIdx + 1) % BUILT.length; render(); }
+      if (k === 'Enter') { toReady(); }
+      return;
+    }
+    if (S.mode === 'ready') {
+      if (k === 'Enter') beginStart(false);
+      if (k === 'Escape') goBack();
+      return;
+    }
+    if (S.mode === 'main') {
+      if (k === 'ArrowLeft')  { S.panel = (S.panel + 2) % 3; render(); }
+      if (k === 'ArrowRight') { S.panel = (S.panel + 1) % 3; render(); }
+      if (k === 'ArrowUp')    { S.theme = 'y'; applyTheme(); }
+      if (k === 'ArrowDown')  { S.theme = 'w'; applyTheme(); }
+      if (k === 'Enter')  manualWp();
+      if (k === 'Escape') goBack();                       // → 終了(popstateでdoneへ)
+      return;
+    }
+    if (S.mode === 'warn') {
+      if (k === 'Enter')  { S.suppressUntil = nowMs() + 5 * 60000; goBack('suppress'); }
+      if (k === 'Escape') goBack();                       // 60秒猶予はpopstate側で付与
+      return;
+    }
+    if (S.mode === 'done') {
+      if (k === 'Enter' || k === 'Escape') goBack();      // → select
+    }
+  });
+
+  function handleSimKey(k) {
+    var sim = Geo.sim;
+    if (k === 'd' || k === 'D') { sim.offset = sim.offset ? 0 : 80; return true; }
+    if (k === 'l' || k === 'L') { sim.lostUntil = Date.now() + 35000; return true; }
+    if (k === 'a' || k === 'A') { sim.degraded = !sim.degraded; return true; }
+    if (k === 't' || k === 'T') { sim.teleport = true; return true; }
+    if (k === 'p' || k === 'P') { sim.paused = !sim.paused; return true; }
+    if (k === 's' || k === 'S') { sim.mul = { 5: 20, 20: 60, 60: 5 }[sim.mul] || 20; return true; }
+    if (k === 'n' || k === 'N') {
+      if (S.sun && S.sun.sunset) simClockOff += (S.sun.sunset.getTime() - nowMs()) - 95 * 60000;
+      return true;
+    }
+    if (k === 'g' || k === 'G') {          // 進捗もろとも終盤へ(テレポートではなく早送り)
+      sim.along = Math.max(0, S.route.total - 150);
+      S.along = sim.along; S.maxAlong = Math.max(S.maxAlong, sim.along);
+      S.cursor = CORE.routePointAt(S.route, sim.along).seg;
+      S.movingMin = Math.max(S.movingMin, (CORE.ctAt(S.route, sim.along) || 0) * 1.0);
+      return true;
+    }
+    return false;
+  }
+
+  // PC検証用クリック(ガイド推奨: タップハンドラ並行実装)
+  document.addEventListener('mousedown', function (e) {
+    var x = e.clientX, y = e.clientY;
+    var k;
+    if (y > 545) k = 'Escape';
+    else if (x < 190) k = 'ArrowLeft';
+    else if (x > 410) k = 'ArrowRight';
+    else k = 'Enter';
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: k }));
+  });
+
+  /* ================= 画面遷移ヘルパ ================= */
+  function afterDisclaimer() {
+    var a = lsGet('thud.active');
+    if (a && Date.now() - a.savedAt < 24 * 3600000) {
+      S.resumeData = a; S.mode = 'resume';
+    } else { lsDel('thud.active'); S.mode = 'select'; }
+    render();
+  }
+  function doResume() {
+    var a = S.resumeData; if (!a) { S.mode = 'select'; render(); return; }
+    var idx = 0;
+    for (var i = 0; i < BUILT.length; i++) if (BUILT[i].id === a.routeId) idx = i;
+    S.routeIdx = idx; S.route = BUILT[idx];
+    S.startMs = a.startMs; S.movingMin = a.movingMin || 0; S.stopMin = a.stopMin || 0;
+    S.along = a.along || 0; S.maxAlong = a.maxAlong || 0; S.cursor = a.cursor;
+    S.wpPassed = a.wpPassed || {}; S.track = a.track || []; S.emaKmh = a.emaKmh || 0;
+    if (SIM) Geo.sim.along = S.along;
+    fetchWeather();
+    beginStart(true);
+  }
+  function toReady() {
+    S.route = BUILT[S.routeIdx];
+    S.sun = CORE.sunTimes(S.route.pts[0][0], S.route.pts[0][1], nowDate());
+    if (SIM) { Geo.sim.along = 0; Geo.sim.offset = 0; }
+    fetchWeather();
+    pushScreen('ready'); S.mode = 'ready'; render();
+  }
+  function applyTheme() {
+    document.body.className = S.theme === 'w' ? 't-w' : '';
+  }
+
+  /* ================= 描画 ================= */
+  var app = null;
+  function esc(s) { return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;'); }
+
+  function arrowSvg(id) {
+    return '<svg id="' + id + '" viewBox="0 0 100 100" width="150" height="150">' +
+      '<g id="' + id + '-g" transform="rotate(0 50 50)">' +
+      '<path d="M50 6 L74 62 L50 48 L26 62 Z" fill="currentColor"/>' +
+      '</g></svg>';
+  }
+  var arrowPending = false;
+  function scheduleArrow() {
+    if (arrowPending) return; arrowPending = true;
+    requestAnimationFrame(function () { arrowPending = false; updateArrow(); });
+  }
+  function arrowTarget() {
+    if (!S.proj) return null;
+    if (S.dev && S.dev.state.deviated) {
+      var p = CORE.routePointAt(S.route, S.proj.along);
+      return { pt: p, lbl: '復帰方向' };
+    }
+    // 次WP直線方位は稜線で誤誘導し得るため、ルート120m先を指す(意図的仕様変更)
+    var a = CORE.routePointAt(S.route, Math.min(S.route.total, S.along + 120));
+    return { pt: a, lbl: 'ルート先' };
+  }
+  function updateArrow() {
+    var g = document.getElementById('arw-g');
+    if (!g || !S.lastFix) return;
+    var tgt = arrowTarget(); if (!tgt) return;
+    var fresh = (Date.now() - S.headingReal) < 3000;
+    var wrap = document.getElementById('arw-wrap');
+    if (!fresh || S.heading == null) {                    // F7: 誤方位を出すくらいなら消す
+      if (wrap) wrap.style.visibility = 'hidden';
+      var nl = document.getElementById('arw-na'); if (nl) nl.style.display = 'block';
+      return;
+    }
+    if (wrap) wrap.style.visibility = 'visible';
+    var nl2 = document.getElementById('arw-na'); if (nl2) nl2.style.display = 'none';
+    var brg = CORE.bearing([S.lastFix.la, S.lastFix.lo], [tgt.pt.la, tgt.pt.lo]);
+    var rot = ((brg - S.heading) % 360 + 360) % 360;
+    g.setAttribute('transform', 'rotate(' + rot.toFixed(0) + ' 50 50)');
+  }
+
+  function bandText() {                                   // ⑤帯: 優先度順に1件
+    var t = nowMs();
+    if (S.permDenied) return { c: 'acc1', s: '位置情報が未許可です' };
+    var age = (Date.now() - S.lastFixReal) / 1000;
+    if (S.lastFixReal && age > 30) return { c: 'acc1', s: 'GPS喪失 ' + Math.round(age) + '秒' };
+    if (!S.lastFixReal && S.tracking) return { c: 'dim', s: 'GPS取得中…' };
+    if (S.lastFix && S.lastFix.acc > 75) return { c: 'acc2', s: 'GPS精度低下 ±' + Math.round(S.lastFix.acc) + 'm' };
+    if (S.suppressUntil > t) {
+      var r = Math.ceil((S.suppressUntil - t) / 1000);
+      return { c: 'acc2', s: '逸脱警告を抑制中 残' + Math.floor(r / 60) + ':' + ('0' + (r % 60)).slice(-2) };
+    }
+    if (S.wpFlashUntil > t) return { c: 'main-c', s: S.wpFlashMsg };
+    if (S.lastFix && S.lastFix.acc != null) return { c: 'dim', s: '±' + Math.round(S.lastFix.acc) + 'm' + (SIM ? simBadge() : '') };
+    return { c: 'dim', s: SIM ? simBadge() : '' };
+  }
+  function simBadge() {
+    var s = Geo.sim;
+    return '  [SIM ×' + s.mul + (s.paused ? ' 停止' : '') + (s.offset ? ' 逸脱' : '') + (s.degraded ? ' 低精度' : '') + ']';
+  }
+
+  function sunsetHtml() {
+    if (!S.sun || !S.sun.sunset) return '<span class="dim">日没 --:--</span>';
+    var remMin = (S.sun.sunset.getTime() - nowMs()) / 60000;
+    var cls = remMin <= 30 ? 'acc1' : (remMin <= 90 ? 'acc2' : '');
+    var rem = remMin > 0 ? '(残' + CORE.fmtDur(remMin) + ')' : '(日没後)';
+    return '<span class="' + cls + '">日没 ' + CORE.fmtClock(S.sun.sunset) + ' ' + rem + '</span>';
+  }
+
+  /* ---- 各画面 ---- */
+  function scrDisclaimer() {
+    return '<div class="overlay ctr"><div class="ov-title acc2">登山HUD (試作)</div>' +
+      '<div class="ov-body">本アプリは<b>補助</b>です。<br>地図・コンパス・スマホを<br>必ず携行してください。<br><br>' +
+      '緊急時はスマホで<br><b>110 / 119</b> へ通報。</div>' +
+      '<div class="hint main-c" style="margin-top:44px">ピンチで了承して開始</div></div>';
+  }
+  function scrResume() {
+    var a = S.resumeData;
+    var name = ''; for (var i = 0; i < BUILT.length; i++) if (BUILT[i].id === a.routeId) name = BUILT[i].name;
+    return '<div class="overlay ctr"><div class="ov-title">前回の山行があります</div>' +
+      '<div class="ov-body">' + esc(name) + '<br>進捗 ' + CORE.fmtKm(a.maxAlong || 0) + '</div>' +
+      '<div class="hint" style="margin-top:50px"><span class="main-c">ピンチ: 再開</span>' +
+      '<span class="dim">　／　戻る: 破棄</span></div></div>';
+  }
+  function scrSelect() {
+    var r = BUILT[S.routeIdx];
+    var dots = '';
+    for (var i = 0; i < BUILT.length; i++) dots += (i === S.routeIdx ? '●' : '○');
+    return '<div class="abs ctr" style="top:34px"><span class="screen-title dim">ルート選択</span></div>' +
+      '<div class="abs" style="top:150px;left:20px" ><span class="navlr dim">‹</span></div>' +
+      '<div class="abs" style="top:150px;right:20px;left:auto;width:40px"><span class="navlr dim">›</span></div>' +
+      '<div class="abs ctr" style="top:120px;padding:0 80px"><span class="route-name main-c">' + esc(r.name) + '</span></div>' +
+      '<div class="abs ctr" style="top:230px"><div class="stat-row">距離 ' + CORE.fmtKm(r.total) +
+      '　登り ' + Math.round(r.gainTotal) + 'm</div>' +
+      '<div class="stat-row">標準CT ' + CORE.fmtDur(r.ctTotal) + '</div>' +
+      (r.demo ? '<div class="stat-row acc2 sub" style="margin-top:8px">※デモ(架空ルート)</div>' : '') + '</div>' +
+      '<div class="abs ctr" style="top:400px"><span class="dots dim">' + dots + '</span></div>' +
+      '<div class="abs ctr" style="bottom:28px"><span class="hint dim">←→ 選択　ピンチ 決定</span></div>';
+  }
+  function scrReady() {
+    var r = S.route;
+    var set = S.sun && S.sun.sunset ? CORE.fmtClock(S.sun.sunset) : '--:--';
+    return '<div class="abs ctr" style="top:40px"><span class="route-name">' + esc(r.name) + '</span></div>' +
+      '<div class="abs" style="top:150px;padding:0 110px"><div class="frame">' +
+      '<div class="stat-row">距離　　 ' + CORE.fmtKm(r.total) + '</div>' +
+      '<div class="stat-row">獲得標高 +' + Math.round(r.gainTotal) + 'm</div>' +
+      '<div class="stat-row">標準CT　 ' + CORE.fmtDur(r.ctTotal) + '</div>' +
+      '<div class="stat-row">日没　　 ' + set + '</div></div></div>' +
+      (S.perm ? '<div class="abs ctr" style="top:420px;padding:0 40px"><span class="sub acc2">' + esc(S.perm) + '</span></div>' : '') +
+      '<div class="abs ctr" style="bottom:28px"><span class="hint ' + (S.starting ? 'dim' : 'main-c') + '">' +
+      (S.starting ? '確認中…' : 'ピンチで計測開始') + '</span><span class="hint dim">　戻る: 選択へ</span></div>';
+  }
+  function panelHeader(names) {
+    var h = '';
+    for (var i = 0; i < names.length; i++) {
+      h += '<span class="' + (i === S.panel ? 'main-c' : 'dim') + '">' + names[i] + '</span>' + (i < names.length - 1 ? '<span class="dim"> ・ </span>' : '');
+    }
+    return '<div class="abs z-head"><span class="dim">◂ </span>' + h + '<span class="dim"> ▸</span></div>';
+  }
+  function scrMain() {
+    var head = panelHeader(['進捗', '次WP', '天気']);
+    var band = bandText();
+    var bandHtml = '<div class="abs z-band ' + band.c + '">' + esc(band.s) + '</div>';
+    if (S.panel === 0) return head + panelProgress() + bandHtml;
+    if (S.panel === 1) return head + panelWp() + bandHtml;
+    return head + panelWx() + bandHtml;
+  }
+  function panelProgress() {
+    var rem = S.proj ? CORE.remaining(S.route, S.along) : { dist: S.route.total, gain: S.route.gainTotal };
+    var eta = CORE.etaRemainMin(S.route, S.along, S.movingMin, S.emaKmh);
+    var etaTxt = eta.min != null ? CORE.fmtClock(new Date(nowMs() + eta.min * 60000)) : '--:--';
+    var ct = CORE.ctAt(S.route, S.along);
+    var ctTxt = (ct != null && ct > 5) ? 'CT ' + CORE.fmtDiff(S.movingMin - ct) : 'CT --';
+    var pace = S.emaKmh ? S.emaKmh.toFixed(1) + 'km/h' : '--km/h';
+    return '<div class="abs z-arrow ctr"><div class="arrow-wrap main-c" id="arw-wrap">' + arrowSvg('arw') + '</div>' +
+      '<div class="arrow-lbl dim" id="arw-na" style="display:none">方位取得不可</div>' +
+      '<div class="arrow-lbl dim">' + (S.dev && S.dev.state.deviated ? '<span class="acc1">復帰方向</span>' : 'ルート先') + '</div></div>' +
+      '<div class="abs z-big ctr"><div class="big1 main-c">残 ' + CORE.fmtKm(rem.dist) + '</div>' +
+      '<div class="big2 main-c">↑' + Math.round(rem.gain) + 'm</div></div>' +
+      '<div class="abs z-eta ctr"><div class="eta1">ETA ' + etaTxt + '</div>' +
+      '<div class="eta2">' + sunsetHtml() + '</div></div>' +
+      '<div class="abs z-ct ctr"><span class="ct1 dim">' + ctTxt + ' ・ ' + pace + (S.moving ? '' : ' <span class="acc2">停止中</span>') + '</span></div>';
+  }
+  function panelWp() {
+    var w = nextWp();
+    if (!w) return '<div class="abs ctr" style="top:220px"><span class="eta1 dim">この先のWPなし</span></div>';
+    var distTo = Math.max(0, w.d - S.along);
+    var p = CORE.routePointAt(S.route, w.d);
+    var el = S.route.pts[p.seg] ? Math.round(S.route.pts[p.seg][2]) : null;
+    var tmap = { water: '水場', hut: '小屋', junction: '分岐', peak: '山頂', escape: '分岐', goal: 'ゴール', wp: '' };
+    var esc2 = (w.t === 'escape') ? '<div class="eta2 acc2">撤退路あり</div>' : '';
+    return '<div class="abs ctr" style="top:110px"><div class="sub dim">次のポイント' + (tmap[w.t] ? ' [' + tmap[w.t] + ']' : '') + '</div>' +
+      '<div class="route-name" style="margin-top:10px">' + esc(w.n) + '</div></div>' +
+      '<div class="abs ctr" style="top:250px"><div class="big1 main-c">あと ' + CORE.fmtKm(distTo) + '</div>' +
+      (el != null ? '<div class="eta2 dim" style="margin-top:14px">標高 約' + el + 'm</div>' : '') + esc2 + '</div>' +
+      '<div class="abs ctr" style="top:470px"><span class="sub dim">ピンチ: 通過を手動確認</span></div>';
+  }
+  function panelWx() {
+    if (!S.wx) return '<div class="abs ctr" style="top:200px"><span class="eta1 dim">天気データなし</span>' +
+      '<div class="sub dim" style="margin-top:16px">登山口(オンライン時)に自動取得</div></div>';
+    var ageH = Math.round((Date.now() - S.wx.t) / 3600000);
+    var rows = '';
+    for (var i = 0; i < S.wx.rows.length; i++) {
+      var r = S.wx.rows[i];
+      var ppc = r.pp >= 50 ? 'acc2' : '';
+      rows += '<div class="stat-row">' + r.h + '時　' + r.temp + '°　<span class="' + ppc + '">' + r.pp + '%</span></div>';
+    }
+    return '<div class="abs ctr" style="top:100px"><span class="sub dim">登山口の予報(時刻/気温/降水)</span></div>' +
+      '<div class="abs" style="top:150px;padding:0 150px">' + rows + '</div>' +
+      '<div class="abs ctr" style="top:460px"><span class="sub ' + (ageH >= 6 ? 'acc2' : 'dim') + '">' + ageH + '時間前 取得</span></div>';
+  }
+  function scrWarn() {
+    var d = S.dev ? Math.round(S.dev.state.dist) : 0;
+    return '<div class="abs ctr warn-line" style="top:56px"><div class="warn-title">ルート逸脱</div>' +
+      '<div class="warn-dist">' + d + '<span style="font-size:44px">m</span></div></div>' +
+      '<div class="abs z-arrow ctr" style="top:270px"><div class="arrow-wrap acc2" id="arw-wrap">' + arrowSvg('arw') + '</div>' +
+      '<div class="arrow-lbl dim" id="arw-na" style="display:none">方位取得不可</div>' +
+      '<div class="arrow-lbl acc2">復帰方向</div></div>' +
+      '<div class="abs ctr" style="bottom:24px"><span class="hint dim">ピンチ: 5分抑制　／　戻る: 閉じる</span></div>';
+  }
+  function scrDone() {
+    var f = S.finished || {};
+    return '<div class="abs ctr" style="top:50px"><span class="screen-title acc2">下山サマリー</span></div>' +
+      '<div class="abs" style="top:130px;padding:0 120px"><div class="frame">' +
+      '<div class="stat-row">距離　　 ' + CORE.fmtKm(f.dist || 0) + '</div>' +
+      '<div class="stat-row">所要　　 ' + CORE.fmtDur(f.elapsed || 0) + '</div>' +
+      '<div class="stat-row">行動　　 ' + CORE.fmtDur(f.moving || 0) + '</div>' +
+      '<div class="stat-row">休憩　　 ' + CORE.fmtDur(f.stop || 0) + '</div>' +
+      '<div class="stat-row">標準CT比 ' + (f.ctRatio ? f.ctRatio.toFixed(2) : '--') + '</div>' +
+      '</div></div>' +
+      '<div class="abs ctr" style="bottom:30px"><span class="hint main-c">ピンチ/戻る で終了</span></div>';
+  }
+
+  function render() {
+    if (!app) app = document.getElementById('app');
+    var html = '';
+    if (S.mode === 'disclaimer') html = scrDisclaimer();
+    else if (S.mode === 'resume') html = scrResume();
+    else if (S.mode === 'select') html = scrSelect();
+    else if (S.mode === 'ready')  html = scrReady();
+    else if (S.mode === 'main')   html = scrMain();
+    else if (S.mode === 'warn')   html = scrWarn();
+    else if (S.mode === 'done')   html = scrDone();
+    app.innerHTML = html;
+    updateArrow();
+  }
+
+  /* ================= 起動 ================= */
+  function boot() {
+    applyTheme();
+    initHistory();
+    if ('serviceWorker' in navigator) {                   // オフライン起動(圏外で再起動しても動く)
+      try { navigator.serviceWorker.register('sw.js')['catch'](function () {}); } catch (e) {}
+    }
+    S.mode = 'disclaimer';
+    render();
+  }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot);
+  else boot();
+
+  // テスト用フック(実機では未使用)
+  if (typeof window !== 'undefined') window.__THUD = { S: S, Geo: Geo, render: render, nowMs: nowMs };
+})();
+</script>
+</body>
+</html>
