@@ -72,7 +72,7 @@ body {
 <body>
 <div id="app"></div>
 <script>
-var BUILD='0827-1339J';
+var BUILD='0827-1350J';
 // 自動生成: tools/make_field_demo.py
 // ※[概形]ルートは主要地点を結んだ近似。実山行には gpx2route.py で実GPXを変換して差し替えること
 var ROUTES = [{"id":"harumi","name":"晴海フラッグ周回 [概形]","dist":2011,"gain":1,"poly":"_kqxEodbtYiG_HeEgDwH_IgB{Bq@qAM{@Be@Fg@`@qAp@kAr@aAp@w@x@q@`Ae@`@KfAIbADz@LxBr@zA`AzFlFr@~@z@jBf@pBRjCA`B]|EyEbK","ele":"E???A??????????@?????????????","wps":[{"d":0,"n":"晴海ふ頭公園","t":"start"},{"d":684,"n":"北端折返し","t":"wp"},{"d":1090,"n":"晴海緑道公園","t":"wp"},{"d":2011,"n":"下山口","t":"goal"}],"cts":[[0,0],[500,8],[1000,15],[1500,23],[2000,30],[2011,30]],"demo":true},{"id":"takao","name":"高尾山 1号路 往復 [概形]","dist":5551,"gain":409,"poly":"ulnxEuc`qY`AnDV~AF~AKnAUhAa@jAi@fAuBfDmC~GYlAEh@Aj@Dn@d@vAxCbGpBlDd@fAbB`GtApDlApD`CfFpApEzDdL`FlJdDtEtBfDjCnD`@x@`@hAl@~Bb@xBJnABlACj@QxAoAxFnAyFPyABk@CmAKoAc@yBm@_Ca@iAa@y@kCoDuBgDeDuEaFmJ{DeLqAqEaCgFmAqDuAqDcBaGe@gAqBmDyCcGe@wAEo@@k@Di@XmAlC_HtBgDh@gA`@kATiAJoAG_BW_BaAoD","ele":"{JGGMSU[[mA}B]MKKQa@OG]WSWMSOOMOEIMOKKGOu@t@NFJJNLHDNLNNRLVRV\\FN`@PJJL\\|BlAZZTRLFF","wps":[{"d":0,"n":"高尾山口駅","t":"start"},{"d":680,"n":"金比羅台","t":"wp"},{"d":1452,"n":"ケーブル高尾山駅","t":"hut"},{"d":2360,"n":"薬王院","t":"junction"},{"d":2775,"n":"高尾山山頂","t":"peak"},{"d":3191,"n":"薬王院","t":"junction"},{"d":4099,"n":"ケーブル高尾山駅","t":"hut"},{"d":4871,"n":"金比羅台","t":"wp"},{"d":5551,"n":"下山口","t":"goal"}],"cts":[[0,0],[500,42],[1000,63],[1500,82],[2000,96],[2500,109],[3000,133],[3500,146],[4000,156],[4500,168],[5000,192],[5500,210],[5551,210]],"demo":true},{"id":"fuji","name":"富士山 吉田ルート [概形]","dist":5065,"gain":1410,"poly":"{k`wEijwmYMo@Ck@FYXKd@DbBXl@@`@MRa@Du@?aCFy@Pi@`@Yl@GjBDl@Eb@URg@Dw@AeCBw@Ne@ZQfEPb@MV_@Hs@FyBHs@Ra@^Mj@DbB`@j@F^IR]Hs@@}BFw@Pg@^Qh@?bBTl@@`@MTa@Hu@D_CHu@Rc@^Mj@DpCp@`@CT[Ps@RwDRe@^Ql@@hCj@\\CRWf@iB\\y@f@k@^S\\H\\b@hArCZV^Ad@UvAcAj@Sd@?\\XXn@h@|BTr@\\\\b@Dh@Q`CyA`@C^TXl@f@rBTl@\\Zb@@h@Q|A_Aj@Sb@?ZXRn@h@nDT`@\\Ff@KvAq@n@Id@HZ^Pr@P`CLt@Tb@`@Jj@GdBg@l@Ib@DV\\Hn@FxBJv@Rd@`@Pj@?hBSj@?`@PPb@Dt@CbCDx@Nf@^Rl@?tCc@d@HV^Lp@P|BJr@T^^Hj@IdBi@n@Eb@HR^Fn@?xBHt@Vd@d@Jn@GtA}@h@Uf@?`@V\\n@z@zB\\n@`@Zb@Ad@W`BuB","ele":"aoCAAAAAEACACECCCAGCCACGACCKACACAACAECECEMGIIIWMKMO[OOOOm@OOSy@USS_AUUm@UWOOMq@OQOc@OQQQa@QOQOq@OQQc@QQQQc@QOQQq@OOO_@QQQQa@OOQO]OOOQ_@SSSUg@USSSg@SQQSw@QQOa@QMOO_@OMMKYMMOO[QOQQc@QOOM_@","wps":[{"d":0,"n":"五合目","t":"start"},{"d":1191,"n":"六合目","t":"wp"},{"d":2065,"n":"七合目","t":"hut"},{"d":3242,"n":"八合目","t":"hut"},{"d":4082,"n":"本八合目 [下山道分岐]","t":"escape"},{"d":4676,"n":"九合目","t":"wp"},{"d":5065,"n":"吉田口頂上","t":"goal"}],"cts":[[0,0],[500,14],[1000,29],[1500,55],[2000,105],[2500,145],[3000,188],[3500,232],[4000,276],[4500,317],[5000,358],[5065,358]],"demo":true}];
@@ -378,13 +378,17 @@ if (typeof module !== 'undefined') module.exports = CORE;
 
   var SIM = /[?&]sim=1/.test(location.search);
 
+  // センサー診断(実機で方位が取れない問題の切り分け用。ready画面で↓表示)
+  var DIAG = { oriFn: '?', motFn: '?', oriPerm: '-', motPerm: '-',
+               absN: 0, oriN: 0, motN: 0, alpha: null, wkc: null, absFlag: null };
+
   /* ---------------- 状態(単一オブジェクト) ---------------- */
   var S = {
     mode: 'disclaimer',
     routeIdx: 0, route: null,
     panel: 0,                 // 0進捗 1次WP 2天気
     theme: 'y',               // y=黄(高輝度) w=白
-    perm: '', starting: false, startFailed: false, sensorsReady: false,
+    perm: '', starting: false, startFailed: false, sensorsReady: false, diag: false,
     tracking: false,
     startMs: 0, movingMin: 0, stopMin: 0,
     lastFix: null, lastFixReal: 0,
@@ -485,16 +489,25 @@ if (typeof module !== 'undefined') module.exports = CORE;
   // 重要(公式仕様): センサー権限はユーザージェスチャーから同期的に呼ぶ。
   // かつ、この Promise が解決するまで history.pushState を一切行わないこと。
   // 先に履歴を変更すると requestPermission が永久に pending になりアプリがハングする。
-  function ensureSensors() {
+  function reqPerm(cls, tag) {
     return new Promise(function (res) {
-      if (SIM) { res(); return; }
       try {
-        if (typeof DeviceOrientationEvent !== 'undefined' &&
-            typeof DeviceOrientationEvent.requestPermission === 'function') {
-          DeviceOrientationEvent.requestPermission().then(function () { res(); }, function () { res(); });
-        } else res();
-      } catch (e) { res(); }
+        var C = window[cls];
+        DIAG[tag + 'Fn'] = (typeof C === 'undefined') ? 'クラス無'
+          : (typeof C.requestPermission === 'function' ? 'あり' : '関数無(自動付与)');
+        if (C && typeof C.requestPermission === 'function') {
+          C.requestPermission().then(
+            function (r) { DIAG[tag + 'Perm'] = String(r); res(); },
+            function () { DIAG[tag + 'Perm'] = 'reject'; res(); });
+        } else { DIAG[tag + 'Perm'] = '(不要)'; res(); }
+      } catch (e) { DIAG[tag + 'Perm'] = 'err'; res(); }
     });
+  }
+  function ensureSensors() {
+    if (SIM) return Promise.resolve();
+    // 両クラスとも同一ジェスチャー内で同期的に発行する
+    return Promise.all([reqPerm('DeviceOrientationEvent', 'ori'),
+                        reqPerm('DeviceMotionEvent', 'mot')]);
   }
   function ensureGeo() {
     return new Promise(function (res, rej) {
@@ -509,6 +522,8 @@ if (typeof module !== 'undefined') module.exports = CORE;
   var oriAttached = false, lastAbsMs = 0;
   function oriHandler(isAbs) {
     return function (e) {
+      if (isAbs) DIAG.absN++; else DIAG.oriN++;
+      DIAG.alpha = e.alpha; DIAG.wkc = e.webkitCompassHeading; DIAG.absFlag = e.absolute;
       var h = null;
       if (e.webkitCompassHeading != null) h = e.webkitCompassHeading;
       else if (e.alpha != null) h = (360 - e.alpha) % 360;   // 要実機検証(スパイク項目)
@@ -525,6 +540,7 @@ if (typeof module !== 'undefined') module.exports = CORE;
     // 環境によって発火するイベントが異なるため両方購読する
     window.addEventListener('deviceorientationabsolute', oriHandler(true));
     window.addEventListener('deviceorientation', oriHandler(false));
+    window.addEventListener('devicemotion', function () { DIAG.motN++; });
   }
 
   /* ================= 履歴ナビゲーション ================= */
@@ -724,6 +740,7 @@ if (typeof module !== 'undefined') module.exports = CORE;
   function stopTicker() { if (ticker) { clearInterval(ticker); ticker = null; } }
 
   function tick() {
+    if (S.mode === 'ready' && S.diag) { render(); return; }   // 診断表示のライブ更新のみ
     if (S.mode !== 'main' && S.mode !== 'warn') return;  // 非アクティブ時は進行停止(ガイド準拠)
     var t = nowMs();
     var dtMin = Math.min((t - lastTickMs) / 60000, 5);   // 復帰直後の巨大dtを抑制
@@ -825,6 +842,7 @@ if (typeof module !== 'undefined') module.exports = CORE;
     }
     if (S.mode === 'ready') {
       if (k === 'Enter') { if (S.startFailed) startAnyway(false); else beginStart(false); }
+      if (k === 'ArrowDown' || k === 'ArrowUp') { S.diag = !S.diag; render(); }
       if (k === 'Escape') goBack();
       return;
     }
@@ -925,7 +943,7 @@ if (typeof module !== 'undefined') module.exports = CORE;
     S.sun = CORE.sunTimes(S.route.pts[0][0], S.route.pts[0][1], nowDate());
     if (SIM) { Geo.sim.along = 0; Geo.sim.offset = 0; }
     fetchWeather();
-    pushScreen('ready'); S.mode = 'ready'; render();
+    pushScreen('ready'); S.mode = 'ready'; startTicker(); render();
   }
   function applyTheme() {
     document.body.className = S.theme === 'w' ? 't-w' : '';
@@ -1048,7 +1066,19 @@ if (typeof module !== 'undefined') module.exports = CORE;
       '<div class="abs ctr" style="bottom:28px"><span class="hint ' + (S.starting ? 'dim' : 'main-c') + '">' +
       (S.starting ? '確認中…' : (S.startFailed ? 'ピンチでGPSなし開始' : 'ピンチで計測開始')) +
       '</span><span class="hint dim">　戻る: 選択へ</span></div>' +
-      (SIM ? '' : '<div class="abs ctr" style="bottom:56px"><span class="sub dim">PC検証は URL に ?sim=1 を付ける</span></div>');
+      (SIM ? '' : '<div class="abs ctr" style="bottom:56px"><span class="sub dim">' +
+        (S.diag ? '' : 'PC検証は ?sim=1 ／ ↓でセンサー診断') + '</span></div>') + diagHtml();
+  }
+  function diagHtml() {
+    if (!S.diag) return '';
+    var v = function (x) { return x == null ? 'null' : (typeof x === 'number' ? Math.round(x) : String(x)); };
+    return '<div class="abs" style="top:398px;padding:0 40px"><div class="frame" style="font-size:18px;line-height:1.5">' +
+      '<div>権限 ori: ' + esc(DIAG.oriFn) + ' → ' + esc(DIAG.oriPerm) +
+      ' ／ mot: ' + esc(DIAG.motFn) + ' → ' + esc(DIAG.motPerm) + '</div>' +
+      '<div>受信 abs:' + DIAG.absN + ' 通常:' + DIAG.oriN + ' motion:' + DIAG.motN + '</div>' +
+      '<div>alpha:' + v(DIAG.alpha) + ' wkc:' + v(DIAG.wkc) + ' absolute:' + v(DIAG.absFlag) +
+      ' → heading:' + v(S.heading) + '</div>' +
+      '</div></div>';
   }
   function panelHeader(names) {
     var h = '';
