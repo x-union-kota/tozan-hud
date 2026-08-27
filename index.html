@@ -72,7 +72,7 @@ body {
 <body>
 <div id="app"></div>
 <script>
-var BUILD='0827-1406J';
+var BUILD='0827-1508J';
 // 自動生成: tools/make_field_demo.py
 // ※[概形]ルートは主要地点を結んだ近似。実山行には gpx2route.py で実GPXを変換して差し替えること
 var ROUTES = [{"id":"harumi","name":"晴海フラッグ周回 [概形]","dist":2011,"gain":1,"poly":"_kqxEodbtYiG_HeEgDwH_IgB{Bq@qAM{@Be@Fg@`@qAp@kAr@aAp@w@x@q@`Ae@`@KfAIbADz@LxBr@zA`AzFlFr@~@z@jBf@pBRjCA`B]|EyEbK","ele":"E???A??????????@?????????????","wps":[{"d":0,"n":"晴海ふ頭公園","t":"start"},{"d":684,"n":"北端折返し","t":"wp"},{"d":1090,"n":"晴海緑道公園","t":"wp"},{"d":2011,"n":"下山口","t":"goal"}],"cts":[[0,0],[500,8],[1000,15],[1500,23],[2000,30],[2011,30]],"demo":true},{"id":"takao","name":"高尾山 1号路 往復 [概形]","dist":5551,"gain":409,"poly":"ulnxEuc`qY`AnDV~AF~AKnAUhAa@jAi@fAuBfDmC~GYlAEh@Aj@Dn@d@vAxCbGpBlDd@fAbB`GtApDlApD`CfFpApEzDdL`FlJdDtEtBfDjCnD`@x@`@hAl@~Bb@xBJnABlACj@QxAoAxFnAyFPyABk@CmAKoAc@yBm@_Ca@iAa@y@kCoDuBgDeDuEaFmJ{DeLqAqEaCgFmAqDuAqDcBaGe@gAqBmDyCcGe@wAEo@@k@Di@XmAlC_HtBgDh@gA`@kATiAJoAG_BW_BaAoD","ele":"{JGGMSU[[mA}B]MKKQa@OG]WSWMSOOMOEIMOKKGOu@t@NFJJNLHDNLNNRLVRV\\FN`@PJJL\\|BlAZZTRLFF","wps":[{"d":0,"n":"高尾山口駅","t":"start"},{"d":680,"n":"金比羅台","t":"wp"},{"d":1452,"n":"ケーブル高尾山駅","t":"hut"},{"d":2360,"n":"薬王院","t":"junction"},{"d":2775,"n":"高尾山山頂","t":"peak"},{"d":3191,"n":"薬王院","t":"junction"},{"d":4099,"n":"ケーブル高尾山駅","t":"hut"},{"d":4871,"n":"金比羅台","t":"wp"},{"d":5551,"n":"下山口","t":"goal"}],"cts":[[0,0],[500,42],[1000,63],[1500,82],[2000,96],[2500,109],[3000,133],[3500,146],[4000,156],[4500,168],[5000,192],[5500,210],[5551,210]],"demo":true},{"id":"fuji","name":"富士山 吉田ルート [概形]","dist":5065,"gain":1410,"poly":"{k`wEijwmYMo@Ck@FYXKd@DbBXl@@`@MRa@Du@?aCFy@Pi@`@Yl@GjBDl@Eb@URg@Dw@AeCBw@Ne@ZQfEPb@MV_@Hs@FyBHs@Ra@^Mj@DbB`@j@F^IR]Hs@@}BFw@Pg@^Qh@?bBTl@@`@MTa@Hu@D_CHu@Rc@^Mj@DpCp@`@CT[Ps@RwDRe@^Ql@@hCj@\\CRWf@iB\\y@f@k@^S\\H\\b@hArCZV^Ad@UvAcAj@Sd@?\\XXn@h@|BTr@\\\\b@Dh@Q`CyA`@C^TXl@f@rBTl@\\Zb@@h@Q|A_Aj@Sb@?ZXRn@h@nDT`@\\Ff@KvAq@n@Id@HZ^Pr@P`CLt@Tb@`@Jj@GdBg@l@Ib@DV\\Hn@FxBJv@Rd@`@Pj@?hBSj@?`@PPb@Dt@CbCDx@Nf@^Rl@?tCc@d@HV^Lp@P|BJr@T^^Hj@IdBi@n@Eb@HR^Fn@?xBHt@Vd@d@Jn@GtA}@h@Uf@?`@V\\n@z@zB\\n@`@Zb@Ad@W`BuB","ele":"aoCAAAAAEACACECCCAGCCACGACCKACACAACAECECEMGIIIWMKMO[OOOOm@OOSy@USS_AUUm@UWOOMq@OQOc@OQQQa@QOQOq@OQQc@QQQQc@QOQQq@OOO_@QQQQa@OOQO]OOOQ_@SSSUg@USSSg@SQQSw@QQOa@QMOO_@OMMKYMMOO[QOQQc@QOOM_@","wps":[{"d":0,"n":"五合目","t":"start"},{"d":1191,"n":"六合目","t":"wp"},{"d":2065,"n":"七合目","t":"hut"},{"d":3242,"n":"八合目","t":"hut"},{"d":4082,"n":"本八合目 [下山道分岐]","t":"escape"},{"d":4676,"n":"九合目","t":"wp"},{"d":5065,"n":"吉田口頂上","t":"goal"}],"cts":[[0,0],[500,14],[1000,29],[1500,55],[2000,105],[2500,145],[3000,188],[3500,232],[4000,276],[4500,317],[5000,358],[5065,358]],"demo":true}];
@@ -395,7 +395,7 @@ if (typeof module !== 'undefined') module.exports = CORE;
     cursor: null, along: 0, maxAlong: 0, proj: null,
     emaKmh: 0, moving: true, lastMoveMs: 0,
     dev: null, suppressUntil: 0, graceUntil: 0,
-    heading: null, headingReal: 0,
+    heading: null, headingReal: 0, hmode: (lsGet('thud.hmode') || 'alpha'),
     sun: null, sunNotice: false,
     wx: null, wxTriedMs: 0,
     track: [], lastTrackMs: 0,
@@ -530,8 +530,12 @@ if (typeof module !== 'undefined') module.exports = CORE;
       if (isAbs) DIAG.absN++; else DIAG.oriN++;
       DIAG.alpha = e.alpha; DIAG.wkc = e.webkitCompassHeading; DIAG.absFlag = e.absolute;
       var h = null;
-      if (e.webkitCompassHeading != null) h = e.webkitCompassHeading;
-      else if (e.alpha != null) h = (360 - e.alpha) % 360;   // 要実機検証(スパイク項目)
+      if (e.webkitCompassHeading != null) h = e.webkitCompassHeading;   // iOS系
+      else if (e.alpha != null) {
+        // MRBD公式Doc: heading = e.alpha (alpha直)。標準Androidは 360-α なので切替可能に
+        var al = ((e.alpha % 360) + 360) % 360;
+        h = (S.hmode === 'inv') ? (360 - al) % 360 : al;
+      }
       if (h == null) return;
       var t = Date.now();
       if (isAbs) lastAbsMs = t;
@@ -635,7 +639,7 @@ if (typeof module !== 'undefined') module.exports = CORE;
     if (!restore) {
       S.startMs = nowMs(); S.movingMin = 0; S.stopMin = 0;
       S.track = []; S.wpPassed = {}; S.along = 0; S.maxAlong = 0;
-      S.cursor = null; S.emaKmh = 0;
+      S.cursor = null; S.emaKmh = 0; S.midJoinChecked = false;
     }
     S.dev = CORE.createDevFSM({ trig: 50, clear: 35, need: 3, accMax: 75 });
     S.lastMoveMs = nowMs(); S.moving = true;
@@ -659,6 +663,10 @@ if (typeof module !== 'undefined') module.exports = CORE;
     if (!m) return;
     S.cursor = m.seg; S.proj = m;
     S.along = m.along;
+    if (!S.midJoinChecked) {                             // 初回射影がルート中腹なら明示する
+      S.midJoinChecked = true;
+      if (m.along > 300 && m.dist < 200) wpFlash('途中から合流 (' + CORE.fmtKm(m.along) + '地点)');
+    }
     if (m.along > S.maxAlong) S.maxAlong = m.along;
     // 速度・移動判定
     if (prev && prev.acc <= 75) {
@@ -794,7 +802,8 @@ if (typeof module !== 'undefined') module.exports = CORE;
     S.wx = lsGet(key);
     if (SIM && !S.wx) {                                  // simはダミー投入
       var rows = [], base = nowDate().getHours();
-      for (var i = 0; i < 4; i++) rows.push({ h: (base + i * 3) % 24, temp: 18 - i, pp: [10, 20, 40, 60][i] });
+      for (var i = 0; i < 4; i++) rows.push({ t: Date.now() + i * 3 * 3600000,
+        h: (base + i * 3) % 24, temp: 18 - i, pp: [10, 20, 40, 60][i] });
       S.wx = { t: Date.now() - 3 * 3600000, rows: rows };
       return;
     }
@@ -811,7 +820,8 @@ if (typeof module !== 'undefined') module.exports = CORE;
         if (!j || !j.hourly) return;
         var rows = [];
         for (var i = 0; i < j.hourly.time.length && rows.length < 4; i += 3) {
-          rows.push({ h: parseInt(j.hourly.time[i].slice(11, 13), 10),
+          rows.push({ t: Date.parse(j.hourly.time[i]),   // timezone=auto=端末ローカル(日本)前提
+                      h: parseInt(j.hourly.time[i].slice(11, 13), 10),
                       temp: Math.round(j.hourly.temperature_2m[i]),
                       pp: j.hourly.precipitation_probability[i] });
         }
@@ -846,6 +856,10 @@ if (typeof module !== 'undefined') module.exports = CORE;
       return;
     }
     if (S.mode === 'ready') {
+      if (S.diag && (k === 'ArrowLeft' || k === 'ArrowRight')) {
+        S.hmode = (S.hmode === 'inv') ? 'alpha' : 'inv';
+        lsSet('thud.hmode', S.hmode); render(); return;
+      }
       if (k === 'Enter') { if (S.startFailed) startAnyway(false); else beginStart(false); }
       if (k === 'ArrowDown' || k === 'ArrowUp') {
         S.diag = !S.diag;
@@ -1093,6 +1107,8 @@ if (typeof module !== 'undefined') module.exports = CORE;
       '<div>受信 abs:' + DIAG.absN + ' 通常:' + DIAG.oriN + ' motion:' + DIAG.motN + '</div>' +
       '<div>alpha:' + v(DIAG.alpha) + ' wkc:' + v(DIAG.wkc) + ' absolute:' + v(DIAG.absFlag) +
       ' → heading:' + v(S.heading) + '</div>' +
+      '<div>変換: <span class="main-c">' + (S.hmode === 'inv' ? '360−α' : 'α直') + '</span>' +
+      ' (←→切替) 東向きでα≈90ならα直が正</div>' +
       '</div></div>';
   }
   function panelHeader(names) {
@@ -1111,6 +1127,17 @@ if (typeof module !== 'undefined') module.exports = CORE;
     return head + panelWx() + bandHtml;
   }
   function panelProgress() {
+    // 逸脱中に沿い距離(残距離/ETA/CT)を出すと誤解を招くため、復帰情報に切り替える
+    if (S.dev && S.dev.state.deviated) {
+      var dd = S.dev.state.dist;
+      return '<div class="abs z-arrow ctr"><div class="arrow-wrap acc2" id="arw-wrap">' + arrowSvg('arw') + '</div>' +
+        '<div class="arrow-lbl dim" id="arw-na" style="display:none">方位取得不可</div>' +
+        '<div class="arrow-lbl acc2">' + (dd > 2000 ? 'ルート方向' : '復帰方向') + '</div></div>' +
+        '<div class="abs z-big ctr"><div class="sub acc2">ルートまで</div>' +
+        '<div class="big1" style="color:#f5a11c">' + CORE.fmtKm(dd) + '</div></div>' +
+        '<div class="abs z-eta ctr"><div class="eta2">' + sunsetHtml() + '</div></div>' +
+        '<div class="abs z-ct ctr"><span class="ct1 dim">残距離・ETAはルート復帰後に表示</span></div>';
+    }
     var rem = S.proj ? CORE.remaining(S.route, S.along) : { dist: S.route.total, gain: S.route.gainTotal };
     var eta = CORE.etaRemainMin(S.route, S.along, S.movingMin, S.emaKmh);
     var etaTxt = eta.min != null ? CORE.fmtClock(new Date(nowMs() + eta.min * 60000)) : '--:--';
@@ -1134,7 +1161,9 @@ if (typeof module !== 'undefined') module.exports = CORE;
     var el = S.route.pts[p.seg] ? Math.round(S.route.pts[p.seg][2]) : null;
     var tmap = { water: '水場', hut: '小屋', junction: '分岐', peak: '山頂', escape: '分岐', goal: 'ゴール', wp: '' };
     var esc2 = (w.t === 'escape') ? '<div class="eta2 acc2">撤退路あり</div>' : '';
-    return '<div class="abs ctr" style="top:110px"><div class="sub dim">次のポイント' + (tmap[w.t] ? ' [' + tmap[w.t] + ']' : '') + '</div>' +
+    var offNote = (S.dev && S.dev.state.deviated)
+      ? '<div class="abs ctr" style="top:70px"><span class="sub acc2">※ルート外 (距離はルート沿い基準)</span></div>' : '';
+    return offNote + '<div class="abs ctr" style="top:110px"><div class="sub dim">次のポイント' + (tmap[w.t] ? ' [' + tmap[w.t] + ']' : '') + '</div>' +
       '<div class="route-name" style="margin-top:10px">' + esc(w.n) + '</div></div>' +
       '<div class="abs ctr" style="top:250px"><div class="big1 main-c">あと ' + CORE.fmtKm(distTo) + '</div>' +
       (el != null ? '<div class="eta2 dim" style="margin-top:14px">標高 約' + el + 'm</div>' : '') + esc2 + '</div>' +
@@ -1144,12 +1173,15 @@ if (typeof module !== 'undefined') module.exports = CORE;
     if (!S.wx) return '<div class="abs ctr" style="top:200px"><span class="eta1 dim">天気データなし</span>' +
       '<div class="sub dim" style="margin-top:16px">登山口(オンライン時)に自動取得</div></div>';
     var ageH = Math.round((Date.now() - S.wx.t) / 3600000);
-    var rows = '';
+    var rows = '', shown = 0;
     for (var i = 0; i < S.wx.rows.length; i++) {
       var r = S.wx.rows[i];
+      if (r.t != null && r.t < Date.now() - 45 * 60000) continue;  // 過ぎた時間帯は出さない
       var ppc = r.pp >= 50 ? 'acc2' : '';
       rows += '<div class="stat-row">' + r.h + '時　' + r.temp + '°　<span class="' + ppc + '">' + r.pp + '%</span></div>';
+      shown++;
     }
+    if (!shown) rows = '<div class="stat-row dim">予報が古いです(再取得待ち)</div>';
     return '<div class="abs ctr" style="top:100px"><span class="sub dim">登山口の予報(時刻/気温/降水)</span></div>' +
       '<div class="abs" style="top:150px;padding:0 150px">' + rows + '</div>' +
       '<div class="abs ctr" style="top:460px"><span class="sub ' + (ageH >= 6 ? 'acc2' : 'dim') + '">' + ageH + '時間前 取得</span></div>';
