@@ -72,7 +72,7 @@ body {
 <body>
 <div id="app"></div>
 <script>
-var BUILD='0827-1350J';
+var BUILD='0827-1406J';
 // 自動生成: tools/make_field_demo.py
 // ※[概形]ルートは主要地点を結んだ近似。実山行には gpx2route.py で実GPXを変換して差し替えること
 var ROUTES = [{"id":"harumi","name":"晴海フラッグ周回 [概形]","dist":2011,"gain":1,"poly":"_kqxEodbtYiG_HeEgDwH_IgB{Bq@qAM{@Be@Fg@`@qAp@kAr@aAp@w@x@q@`Ae@`@KfAIbADz@LxBr@zA`AzFlFr@~@z@jBf@pBRjCA`B]|EyEbK","ele":"E???A??????????@?????????????","wps":[{"d":0,"n":"晴海ふ頭公園","t":"start"},{"d":684,"n":"北端折返し","t":"wp"},{"d":1090,"n":"晴海緑道公園","t":"wp"},{"d":2011,"n":"下山口","t":"goal"}],"cts":[[0,0],[500,8],[1000,15],[1500,23],[2000,30],[2011,30]],"demo":true},{"id":"takao","name":"高尾山 1号路 往復 [概形]","dist":5551,"gain":409,"poly":"ulnxEuc`qY`AnDV~AF~AKnAUhAa@jAi@fAuBfDmC~GYlAEh@Aj@Dn@d@vAxCbGpBlDd@fAbB`GtApDlApD`CfFpApEzDdL`FlJdDtEtBfDjCnD`@x@`@hAl@~Bb@xBJnABlACj@QxAoAxFnAyFPyABk@CmAKoAc@yBm@_Ca@iAa@y@kCoDuBgDeDuEaFmJ{DeLqAqEaCgFmAqDuAqDcBaGe@gAqBmDyCcGe@wAEo@@k@Di@XmAlC_HtBgDh@gA`@kATiAJoAG_BW_BaAoD","ele":"{JGGMSU[[mA}B]MKKQa@OG]WSWMSOOMOEIMOKKGOu@t@NFJJNLHDNLNNRLVRV\\FN`@PJJL\\|BlAZZTRLFF","wps":[{"d":0,"n":"高尾山口駅","t":"start"},{"d":680,"n":"金比羅台","t":"wp"},{"d":1452,"n":"ケーブル高尾山駅","t":"hut"},{"d":2360,"n":"薬王院","t":"junction"},{"d":2775,"n":"高尾山山頂","t":"peak"},{"d":3191,"n":"薬王院","t":"junction"},{"d":4099,"n":"ケーブル高尾山駅","t":"hut"},{"d":4871,"n":"金比羅台","t":"wp"},{"d":5551,"n":"下山口","t":"goal"}],"cts":[[0,0],[500,42],[1000,63],[1500,82],[2000,96],[2500,109],[3000,133],[3500,146],[4000,156],[4500,168],[5000,192],[5500,210],[5551,210]],"demo":true},{"id":"fuji","name":"富士山 吉田ルート [概形]","dist":5065,"gain":1410,"poly":"{k`wEijwmYMo@Ck@FYXKd@DbBXl@@`@MRa@Du@?aCFy@Pi@`@Yl@GjBDl@Eb@URg@Dw@AeCBw@Ne@ZQfEPb@MV_@Hs@FyBHs@Ra@^Mj@DbB`@j@F^IR]Hs@@}BFw@Pg@^Qh@?bBTl@@`@MTa@Hu@D_CHu@Rc@^Mj@DpCp@`@CT[Ps@RwDRe@^Ql@@hCj@\\CRWf@iB\\y@f@k@^S\\H\\b@hArCZV^Ad@UvAcAj@Sd@?\\XXn@h@|BTr@\\\\b@Dh@Q`CyA`@C^TXl@f@rBTl@\\Zb@@h@Q|A_Aj@Sb@?ZXRn@h@nDT`@\\Ff@KvAq@n@Id@HZ^Pr@P`CLt@Tb@`@Jj@GdBg@l@Ib@DV\\Hn@FxBJv@Rd@`@Pj@?hBSj@?`@PPb@Dt@CbCDx@Nf@^Rl@?tCc@d@HV^Lp@P|BJr@T^^Hj@IdBi@n@Eb@HR^Fn@?xBHt@Vd@d@Jn@GtA}@h@Uf@?`@V\\n@z@zB\\n@`@Zb@Ad@W`BuB","ele":"aoCAAAAAEACACECCCAGCCACGACCKACACAACAECECEMGIIIWMKMO[OOOOm@OOSy@USS_AUUm@UWOOMq@OQOc@OQQQa@QOQOq@OQQc@QQQQc@QOQQq@OOO_@QQQQa@OOQO]OOOQ_@SSSUg@USSSg@SQQSw@QQOa@QMOO_@OMMKYMMOO[QOQQc@QOOM_@","wps":[{"d":0,"n":"五合目","t":"start"},{"d":1191,"n":"六合目","t":"wp"},{"d":2065,"n":"七合目","t":"hut"},{"d":3242,"n":"八合目","t":"hut"},{"d":4082,"n":"本八合目 [下山道分岐]","t":"escape"},{"d":4676,"n":"九合目","t":"wp"},{"d":5065,"n":"吉田口頂上","t":"goal"}],"cts":[[0,0],[500,14],[1000,29],[1500,55],[2000,105],[2500,145],[3000,188],[3500,232],[4000,276],[4500,317],[5000,358],[5065,358]],"demo":true}];
@@ -379,7 +379,7 @@ if (typeof module !== 'undefined') module.exports = CORE;
   var SIM = /[?&]sim=1/.test(location.search);
 
   // センサー診断(実機で方位が取れない問題の切り分け用。ready画面で↓表示)
-  var DIAG = { oriFn: '?', motFn: '?', oriPerm: '-', motPerm: '-',
+  var DIAG = { oriFn: '?', motFn: '?', oriPerm: '-', motPerm: '-', reqMs: 0, retryN: 0,
                absN: 0, oriN: 0, motN: 0, alpha: null, wkc: null, absFlag: null };
 
   /* ---------------- 状態(単一オブジェクト) ---------------- */
@@ -505,9 +505,14 @@ if (typeof module !== 'undefined') module.exports = CORE;
   }
   function ensureSensors() {
     if (SIM) return Promise.resolve();
-    // 両クラスとも同一ジェスチャー内で同期的に発行する
-    return Promise.all([reqPerm('DeviceOrientationEvent', 'ori'),
-                        reqPerm('DeviceMotionEvent', 'mot')]);
+    try {  // Motionは存在チェックのみ(2連プロンプトの競合を避ける)
+      var M = window.DeviceMotionEvent;
+      DIAG.motFn = (typeof M === 'undefined') ? 'クラス無'
+        : (typeof M.requestPermission === 'function' ? 'あり' : '関数無(自動付与)');
+      DIAG.motPerm = '(未要求)';
+    } catch (e) {}
+    DIAG.reqMs = Date.now();
+    return reqPerm('DeviceOrientationEvent', 'ori');
   }
   function ensureGeo() {
     return new Promise(function (res, rej) {
@@ -842,7 +847,14 @@ if (typeof module !== 'undefined') module.exports = CORE;
     }
     if (S.mode === 'ready') {
       if (k === 'Enter') { if (S.startFailed) startAnyway(false); else beginStart(false); }
-      if (k === 'ArrowDown' || k === 'ArrowUp') { S.diag = !S.diag; render(); }
+      if (k === 'ArrowDown' || k === 'ArrowUp') {
+        S.diag = !S.diag;
+        if (S.diag && DIAG.oriPerm === '-' && !SIM) {   // 未解決ならこのジェスチャーで再要求
+          DIAG.retryN++; DIAG.reqMs = Date.now();
+          reqPerm('DeviceOrientationEvent', 'ori');
+        }
+        render();
+      }
       if (k === 'Escape') goBack();
       return;
     }
@@ -911,11 +923,12 @@ if (typeof module !== 'undefined') module.exports = CORE;
       if (done) return; done = true;
       permPending = false;
       if (sensorWatchdog) { clearTimeout(sensorWatchdog); sensorWatchdog = null; }
+      initHistory();               // 履歴の初期化は権限解決後が最初(公式ハング対策)
       S.sensorsReady = true; S.perm = '';
       startOrientation();          // 許可が終わってからリスナー装着
       next();
     };
-    sensorWatchdog = setTimeout(finish, 12000);   // 応答が無くても先へ進める
+    sensorWatchdog = setTimeout(finish, 20000);   // プロンプト応答の猶予。無応答でも先へ進める
     ensureSensors().then(finish, finish);         // ← keydown内から同期的に呼ばれる
   }
 
@@ -1074,7 +1087,9 @@ if (typeof module !== 'undefined') module.exports = CORE;
     var v = function (x) { return x == null ? 'null' : (typeof x === 'number' ? Math.round(x) : String(x)); };
     return '<div class="abs" style="top:398px;padding:0 40px"><div class="frame" style="font-size:18px;line-height:1.5">' +
       '<div>権限 ori: ' + esc(DIAG.oriFn) + ' → ' + esc(DIAG.oriPerm) +
-      ' ／ mot: ' + esc(DIAG.motFn) + ' → ' + esc(DIAG.motPerm) + '</div>' +
+      (DIAG.oriPerm === '-' && DIAG.reqMs ? '(' + Math.round((Date.now() - DIAG.reqMs) / 1000) + '秒応答なし)' : '') +
+      (DIAG.retryN ? ' 再要求' + DIAG.retryN : '') +
+      ' ／ mot: ' + esc(DIAG.motFn) + '</div>' +
       '<div>受信 abs:' + DIAG.absN + ' 通常:' + DIAG.oriN + ' motion:' + DIAG.motN + '</div>' +
       '<div>alpha:' + v(DIAG.alpha) + ' wkc:' + v(DIAG.wkc) + ' absolute:' + v(DIAG.absFlag) +
       ' → heading:' + v(S.heading) + '</div>' +
@@ -1183,7 +1198,9 @@ if (typeof module !== 'undefined') module.exports = CORE;
   /* ================= 起動 ================= */
   function boot() {
     applyTheme();
-    initHistory();
+    // 注意: ここで initHistory() を呼んではならない。
+    // 権限解決前の履歴変更(replaceState含む)は requestPermission を
+    // 永久pendingにする(公式の既知問題・実機で再現确认済み)。
     if ('serviceWorker' in navigator) {                   // オフライン起動(圏外で再起動しても動く)
       try { navigator.serviceWorker.register('sw.js')['catch'](function () {}); } catch (e) {}
     }
