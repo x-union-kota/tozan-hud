@@ -72,7 +72,7 @@ body {
 <body>
 <div id="app"></div>
 <script>
-var BUILD='0830-0555J';
+var BUILD='0830-0634J';
 // 自動生成: tools/make_field_demo.py
 // ※[概形]ルートは主要地点を結んだ近似。実山行には gpx2route.py で実GPXを変換して差し替えること
 var ROUTES = [{"id":"harumi","name":"晴海フラッグ周回 [概形]","dist":2011,"gain":1,"poly":"_kqxEodbtYiG_HeEgDwH_IgB{Bq@qAM{@Be@Fg@`@qAp@kAr@aAp@w@x@q@`Ae@`@KfAIbADz@LxBr@zA`AzFlFr@~@z@jBf@pBRjCA`B]|EyEbK","ele":"E???A??????????@?????????????","wps":[{"d":0,"n":"晴海ふ頭公園","t":"start"},{"d":684,"n":"北端折返し","t":"wp"},{"d":1090,"n":"晴海緑道公園","t":"wp"},{"d":2011,"n":"下山口","t":"goal"}],"cts":[[0,0],[500,8],[1000,15],[1500,23],[2000,30],[2011,30]],"demo":true},{"id":"takao","name":"高尾山 1号路 往復 [概形]","dist":5551,"gain":409,"poly":"ulnxEuc`qY`AnDV~AF~AKnAUhAa@jAi@fAuBfDmC~GYlAEh@Aj@Dn@d@vAxCbGpBlDd@fAbB`GtApDlApD`CfFpApEzDdL`FlJdDtEtBfDjCnD`@x@`@hAl@~Bb@xBJnABlACj@QxAoAxFnAyFPyABk@CmAKoAc@yBm@_Ca@iAa@y@kCoDuBgDeDuEaFmJ{DeLqAqEaCgFmAqDuAqDcBaGe@gAqBmDyCcGe@wAEo@@k@Di@XmAlC_HtBgDh@gA`@kATiAJoAG_BW_BaAoD","ele":"{JGGMSU[[mA}B]MKKQa@OG]WSWMSOOMOEIMOKKGOu@t@NFJJNLHDNLNNRLVRV\\FN`@PJJL\\|BlAZZTRLFF","wps":[{"d":0,"n":"高尾山口駅","t":"start"},{"d":680,"n":"金比羅台","t":"wp"},{"d":1452,"n":"ケーブル高尾山駅","t":"hut"},{"d":2360,"n":"薬王院","t":"junction"},{"d":2775,"n":"高尾山山頂","t":"peak"},{"d":3191,"n":"薬王院","t":"junction"},{"d":4099,"n":"ケーブル高尾山駅","t":"hut"},{"d":4871,"n":"金比羅台","t":"wp"},{"d":5551,"n":"下山口","t":"goal"}],"cts":[[0,0],[500,42],[1000,63],[1500,82],[2000,96],[2500,109],[3000,133],[3500,146],[4000,156],[4500,168],[5000,192],[5500,210],[5551,210]],"demo":true},{"id":"fuji","name":"富士山 吉田ルート [概形]","dist":5065,"gain":1410,"poly":"{k`wEijwmYMo@Ck@FYXKd@DbBXl@@`@MRa@Du@?aCFy@Pi@`@Yl@GjBDl@Eb@URg@Dw@AeCBw@Ne@ZQfEPb@MV_@Hs@FyBHs@Ra@^Mj@DbB`@j@F^IR]Hs@@}BFw@Pg@^Qh@?bBTl@@`@MTa@Hu@D_CHu@Rc@^Mj@DpCp@`@CT[Ps@RwDRe@^Ql@@hCj@\\CRWf@iB\\y@f@k@^S\\H\\b@hArCZV^Ad@UvAcAj@Sd@?\\XXn@h@|BTr@\\\\b@Dh@Q`CyA`@C^TXl@f@rBTl@\\Zb@@h@Q|A_Aj@Sb@?ZXRn@h@nDT`@\\Ff@KvAq@n@Id@HZ^Pr@P`CLt@Tb@`@Jj@GdBg@l@Ib@DV\\Hn@FxBJv@Rd@`@Pj@?hBSj@?`@PPb@Dt@CbCDx@Nf@^Rl@?tCc@d@HV^Lp@P|BJr@T^^Hj@IdBi@n@Eb@HR^Fn@?xBHt@Vd@d@Jn@GtA}@h@Uf@?`@V\\n@z@zB\\n@`@Zb@Ad@W`BuB","ele":"aoCAAAAAEACACECCCAGCCACGACCKACACAACAECECEMGIIIWMKMO[OOOOm@OOSy@USS_AUUm@UWOOMq@OQOc@OQQQa@QOQOq@OQQc@QQQQc@QOQQq@OOO_@QQQQa@OOQO]OOOQ_@SSSUg@USSSg@SQQSw@QQOa@QMOO_@OMMKYMMOO[QOQQc@QOOM_@","wps":[{"d":0,"n":"五合目","t":"start"},{"d":1191,"n":"六合目","t":"wp"},{"d":2065,"n":"七合目","t":"hut"},{"d":3242,"n":"八合目","t":"hut"},{"d":4082,"n":"本八合目 [下山道分岐]","t":"escape"},{"d":4676,"n":"九合目","t":"wp"},{"d":5065,"n":"吉田口頂上","t":"goal"}],"cts":[[0,0],[500,14],[1000,29],[1500,55],[2000,105],[2500,145],[3000,188],[3500,232],[4000,276],[4500,317],[5000,358],[5065,358]],"demo":true}];
@@ -380,7 +380,8 @@ if (typeof module !== 'undefined') module.exports = CORE;
 
   // センサー診断(実機で方位が取れない問題の切り分け用。ready画面で↓表示)
   var DIAG = { oriFn: '?', motFn: '?', oriPerm: '-', motPerm: '-', reqMs: 0, retryN: 0,
-               absN: 0, oriN: 0, motN: 0, alpha: null, wkc: null, absFlag: null };
+               absN: 0, oriN: 0, motN: 0, alpha: null, wkc: null, absFlag: null,
+               raw: null, rawErr: '', fixW: 0, fixP: 0 };
 
   /* ---------------- 状態(単一オブジェクト) ---------------- */
   var S = {
@@ -391,7 +392,7 @@ if (typeof module !== 'undefined') module.exports = CORE;
     perm: '', starting: false, startFailed: false, sensorsReady: false, diag: false,
     tracking: false,
     startMs: 0, movingMin: 0, stopMin: 0,
-    lastFix: null, lastFixReal: 0,
+    lastFix: null, lastFixReal: 0, lastGoodFixReal: 0,
     cursor: null, along: 0, maxAlong: 0, proj: null,
     emaKmh: 0, moving: true, lastMoveMs: 0,
     dev: null, suppressUntil: 0, graceUntil: 0,
@@ -463,6 +464,7 @@ if (typeof module !== 'undefined') module.exports = CORE;
         if (!navigator.geolocation) { errCb({ code: 2, message: 'no geolocation' }); return; }
         watchId = navigator.geolocation.watchPosition(
           function (pos) {
+            DIAG.fixW++;
             cb({ la: pos.coords.latitude, lo: pos.coords.longitude,
                  acc: pos.coords.accuracy, t: pos.timestamp || Date.now() });
           },
@@ -561,6 +563,21 @@ if (typeof module !== 'undefined') module.exports = CORE;
     window.addEventListener('deviceorientationabsolute', oriHandler(true));
     window.addEventListener('deviceorientation', oriHandler(false));
     window.addEventListener('devicemotion', function () { DIAG.motN++; });
+  }
+
+  var diagGeoLast = 0;
+  function diagPollGeo() {
+    // システムチェック: 生の測位値を直接表示するための単発測位(5秒ごと)
+    if (SIM) { if (S.lastFix) DIAG.raw = { la: S.lastFix.la, lo: S.lastFix.lo, acc: S.lastFix.acc, t: Date.now() }; return; }
+    if (!navigator.geolocation || Date.now() - diagGeoLast < 5000) return;
+    diagGeoLast = Date.now();
+    try {
+      navigator.geolocation.getCurrentPosition(function (p) {
+        DIAG.raw = { la: p.coords.latitude, lo: p.coords.longitude, acc: p.coords.accuracy, t: Date.now() };
+        DIAG.rawErr = ''; render();
+      }, function (e) { DIAG.rawErr = '測位エラー code=' + e.code; render(); },
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 });
+    } catch (e) {}
   }
 
   /* ================= 履歴ナビゲーション ================= */
@@ -675,6 +692,7 @@ if (typeof module !== 'undefined') module.exports = CORE;
     if (f.acc != null && f.acc > 75) { return; }         // 低精度は生存確認のみ(F2/判定不使用)
     var m = CORE.matchLocal(S.route, S.cursor, f.la, f.lo, S.along); // 初回もalong=0起点でバイアス(ピストンの往復同一線形対策)
     if (!m) return;
+    S.lastGoodFixReal = Date.now();
     S.cursor = m.seg; S.proj = m;
     S.along = m.along;
     if (!S.midJoinChecked) {                             // 初回射影がルート中腹なら明示する
@@ -766,9 +784,27 @@ if (typeof module !== 'undefined') module.exports = CORE;
   function startTicker() { if (!ticker) { lastTickMs = nowMs(); ticker = setInterval(tick, 1000); } }
   function stopTicker() { if (ticker) { clearInterval(ticker); ticker = null; } }
 
+  var geoPolling = false;
+  function keepAlivePoll() {
+    // watchPositionは「位置が変わらないと報告しない」実装があるため、
+    // 無報告20秒で単発測位を打って生存確認する。これが失敗し続けたときだけ本物の喪失
+    if (SIM || geoPolling || !navigator.geolocation) return;
+    if (Date.now() - S.lastFixReal < 20000) return;
+    geoPolling = true;
+    try {
+      navigator.geolocation.getCurrentPosition(function (p) {
+        geoPolling = false; DIAG.fixP++;
+        onFix({ la: p.coords.latitude, lo: p.coords.longitude,
+                acc: p.coords.acc || p.coords.accuracy, t: p.timestamp || Date.now() });
+      }, function () { geoPolling = false; },
+      { enableHighAccuracy: true, timeout: 12000, maximumAge: 0 });
+    } catch (e) { geoPolling = false; }
+  }
+
   function tick() {
-    if (S.mode === 'ready' && S.diag) { render(); return; }   // 診断表示のライブ更新のみ
+    if (S.mode === 'ready' && S.diag) { diagPollGeo(); render(); return; }   // 診断表示のライブ更新+GPS単発測位
     if (S.mode !== 'main' && S.mode !== 'warn') return;  // 非アクティブ時は進行停止(ガイド準拠)
+    if (S.tracking) keepAlivePoll();
     var t = nowMs();
     var dtMin = Math.min((t - lastTickMs) / 60000, 5);   // 復帰直後の巨大dtを抑制
     lastTickMs = t;
@@ -870,6 +906,7 @@ if (typeof module !== 'undefined') module.exports = CORE;
       return;
     }
     if (S.mode === 'ready') {
+      if ((k === 'ArrowDown' || k === 'ArrowUp') && !S.diag) diagGeoLast = 0;  // 開いた瞬間に測位
       if (S.diag && (k === 'ArrowLeft' || k === 'ArrowRight')) {
         S.hmode = (S.hmode === 'inv') ? 'alpha' : 'inv';
         lsSet('thud.hmode', S.hmode); render(); return;
@@ -1117,7 +1154,17 @@ if (typeof module !== 'undefined') module.exports = CORE;
   function diagHtml() {
     if (!S.diag) return '';
     var v = function (x) { return x == null ? 'null' : (typeof x === 'number' ? Math.round(x) : String(x)); };
-    return '<div class="abs" style="top:398px;padding:0 40px"><div class="frame" style="font-size:18px;line-height:1.5">' +
+    var g = DIAG.raw;
+    var gpsLine = g
+      ? g.la.toFixed(5) + ', ' + g.lo.toFixed(5) + ' ±' + Math.round(g.acc) + 'm (' + Math.round((Date.now() - g.t) / 1000) + '秒前)'
+      : (DIAG.rawErr || '測位中…');
+    var startLine = '';
+    if (g && S.route) {
+      var sp = [S.route.pts[0][0], S.route.pts[0][1]];
+      startLine = '<div>起点まで ' + CORE.fmtKm(CORE.hav([g.la, g.lo], sp)) +
+        ' 方位' + Math.round(CORE.bearing([g.la, g.lo], sp)) + '°　w:' + DIAG.fixW + ' p:' + DIAG.fixP + '</div>';
+    }
+    return '<div class="abs" style="top:352px;padding:0 40px"><div class="frame" style="font-size:17px;line-height:1.45">' +
       '<div>権限 ori: ' + esc(DIAG.oriFn) + ' → ' + esc(DIAG.oriPerm) +
       (DIAG.oriPerm === '-' && DIAG.reqMs ? '(' + Math.round((Date.now() - DIAG.reqMs) / 1000) + '秒応答なし)' : '') +
       (DIAG.retryN ? ' 再要求' + DIAG.retryN : '') +
@@ -1127,6 +1174,7 @@ if (typeof module !== 'undefined') module.exports = CORE;
       ' → heading:' + v(S.heading) + '</div>' +
       '<div>変換: <span class="main-c">' + (S.hmode === 'inv' ? '360−α' : 'α直') + '</span>' +
       ' (←→切替) 東向きでα≈90ならα直が正</div>' +
+      '<div>GPS: <span class="main-c">' + gpsLine + '</span></div>' + startLine +
       '</div></div>';
   }
   function panelHeader(names) {
@@ -1145,9 +1193,23 @@ if (typeof module !== 'undefined') module.exports = CORE;
     if (S.panel === 2) return head + panelMap() + bandHtml;
     return head + panelWx() + bandHtml;
   }
+  function staleInfo() {
+    var s = S.lastGoodFixReal ? (Date.now() - S.lastGoodFixReal) / 1000 : Infinity;
+    return { sec: s, txt: s > 90 ? '(' + Math.round(s / 60) + '分前の位置)' : '' };
+  }
   function panelProgress() {
-    // 逸脱中に沿い距離(残距離/ETA/CT)を出すと誤解を招くため、復帰情報に切り替える
-    if (S.dev && S.dev.state.deviated) {
+    // 有効な測位が一度も無い/10分以上古い → 数字を出さない(古い値を確信的に出さない)
+    var st = staleInfo();
+    if (!S.proj || st.sec > 600) {
+      return '<div class="abs z-big ctr"><div class="big2 dim" style="margin-top:40px">GPS待ち…</div>' +
+        '<div class="sub dim" style="margin-top:14px">' +
+        (S.lastFix && S.lastFix.acc > 75 ? '精度不足 ±' + Math.round(S.lastFix.acc) + 'm (屋内では改善しません)' : '測位待ちです') +
+        '</div></div>' +
+        '<div class="abs z-eta ctr"><div class="eta2">' + sunsetHtml() + '</div></div>' +
+        '<div class="abs z-ct ctr"><span class="ct1 dim">残距離は測位後に表示</span></div>';
+    }
+    // 逸脱中(FSM確定 or 射影距離150m超)は沿い距離でなく復帰情報を出す
+    if (S.dev && (S.dev.state.deviated || (S.proj && S.proj.dist > 150))) {
       var dd = S.dev.state.dist;
       return '<div class="abs z-arrow ctr"><div class="arrow-wrap acc2" id="arw-wrap">' + arrowSvg('arw') + '</div>' +
         '<div class="arrow-lbl dim" id="arw-na" style="display:none">方位取得不可</div>' +
@@ -1155,9 +1217,9 @@ if (typeof module !== 'undefined') module.exports = CORE;
         '<div class="abs z-big ctr"><div class="sub acc2">ルートまで</div>' +
         '<div class="big1" style="color:#f5a11c">' + CORE.fmtKm(dd) + '</div></div>' +
         '<div class="abs z-eta ctr"><div class="eta2">' + sunsetHtml() + '</div></div>' +
-        '<div class="abs z-ct ctr"><span class="ct1 dim">残距離・ETAはルート復帰後に表示</span></div>';
+        '<div class="abs z-ct ctr"><span class="ct1 dim">残距離・ETAはルート復帰後に表示' + (st.txt ? ' ' + st.txt : '') + '</span></div>';
     }
-    var rem = S.proj ? CORE.remaining(S.route, S.along) : { dist: S.route.total, gain: S.route.gainTotal };
+    var rem = CORE.remaining(S.route, S.along);
     var eta = CORE.etaRemainMin(S.route, S.along, S.movingMin, S.emaKmh);
     var etaTxt = eta.min != null ? CORE.fmtClock(new Date(nowMs() + eta.min * 60000)) : '--:--';
     var ct = CORE.ctAt(S.route, S.along);
@@ -1166,13 +1228,19 @@ if (typeof module !== 'undefined') module.exports = CORE;
     return '<div class="abs z-arrow ctr"><div class="arrow-wrap main-c" id="arw-wrap">' + arrowSvg('arw') + '</div>' +
       '<div class="arrow-lbl dim" id="arw-na" style="display:none">方位取得不可</div>' +
       '<div class="arrow-lbl dim">' + (S.dev && S.dev.state.deviated ? '<span class="acc1">復帰方向</span>' : 'ルート先') + '</div></div>' +
-      '<div class="abs z-big ctr"><div class="big1 main-c">残 ' + CORE.fmtKm(rem.dist) + '</div>' +
-      '<div class="big2 main-c">↑' + Math.round(rem.gain) + 'm</div></div>' +
+      '<div class="abs z-big ctr"><div class="big1 ' + (st.sec > 90 ? 'dim' : 'main-c') + '">残 ' + CORE.fmtKm(rem.dist) + '</div>' +
+      '<div class="big2 ' + (st.sec > 90 ? 'dim' : 'main-c') + '">↑' + Math.round(rem.gain) + 'm' +
+      (st.txt ? ' <span class="sub acc2">' + st.txt + '</span>' : '') + '</div></div>' +
       '<div class="abs z-eta ctr"><div class="eta1">ETA ' + etaTxt + '</div>' +
       '<div class="eta2">' + sunsetHtml() + '</div></div>' +
       '<div class="abs z-ct ctr"><span class="ct1 dim">' + ctTxt + ' ・ ' + pace + (S.moving ? '' : ' <span class="acc2">停止中</span>') + '</span></div>';
   }
   function panelWp() {
+    var st = staleInfo();
+    if (!S.proj || st.sec > 600) {
+      return '<div class="abs ctr" style="top:220px"><span class="eta1 dim">GPS待ち…</span>' +
+        '<div class="sub dim" style="margin-top:14px">WPまでの距離は測位後に表示</div></div>';
+    }
     var w = nextWp();
     if (!w) return '<div class="abs ctr" style="top:220px"><span class="eta1 dim">この先のWPなし</span></div>';
     var distTo = Math.max(0, w.d - S.along);
@@ -1180,8 +1248,9 @@ if (typeof module !== 'undefined') module.exports = CORE;
     var el = S.route.pts[p.seg] ? Math.round(S.route.pts[p.seg][2]) : null;
     var tmap = { water: '水場', hut: '小屋', junction: '分岐', peak: '山頂', escape: '分岐', goal: 'ゴール', wp: '' };
     var esc2 = (w.t === 'escape') ? '<div class="eta2 acc2">撤退路あり</div>' : '';
-    var offNote = (S.dev && S.dev.state.deviated)
-      ? '<div class="abs ctr" style="top:70px"><span class="sub acc2">※ルート外 (距離はルート沿い基準)</span></div>' : '';
+    var offNote = (S.dev && (S.dev.state.deviated || (S.proj && S.proj.dist > 150)))
+      ? '<div class="abs ctr" style="top:70px"><span class="sub acc2">※ルート外 (距離はルート沿い基準)</span></div>'
+      : (st.txt ? '<div class="abs ctr" style="top:70px"><span class="sub acc2">' + st.txt + '</span></div>' : '');
     return offNote + '<div class="abs ctr" style="top:110px"><div class="sub dim">次のポイント' + (tmap[w.t] ? ' [' + tmap[w.t] + ']' : '') + '</div>' +
       '<div class="route-name" style="margin-top:10px">' + esc(w.n) + '</div></div>' +
       '<div class="abs ctr" style="top:250px"><div class="big1 main-c">あと ' + CORE.fmtKm(distTo) + '</div>' +
@@ -1247,8 +1316,12 @@ if (typeof module !== 'undefined') module.exports = CORE;
     var cap = (devd < 2500)
       ? '残 ' + CORE.fmtKm(Math.max(0, r.total - S.along)) + (S.lastFix && S.lastFix.acc != null ? '　±' + Math.round(S.lastFix.acc) + 'm' : '')
       : 'ルート範囲外 (現在地は図の外)';
+    var rawCap = S.lastFix
+      ? S.lastFix.la.toFixed(5) + ', ' + S.lastFix.lo.toFixed(5) + ' (' + Math.round((Date.now() - S.lastFixReal) / 1000) + '秒前)'
+      : '測位待ち';
     return '<div class="abs ctr" style="top:44px">' + svg + '</div>' +
-      '<div class="abs ctr" style="top:400px"><span class="ct1 dim">' + cap + '</span></div>';
+      '<div class="abs ctr" style="top:396px"><span class="ct1 dim">' + cap + '</span></div>' +
+      '<div class="abs ctr" style="top:428px"><span class="sub dim">' + rawCap + '</span></div>';
   }
 
   function panelWx() {
