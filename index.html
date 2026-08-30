@@ -67,15 +67,130 @@ body {
 .ov-body  { font-size: 22px; line-height: 1.65; margin-top: 26px; }
 
 .frame { border: 2px solid #6b675c; border-radius: 6px; padding: 14px 18px; }
+
+/* 夜間(空レイヤ): 暗赤系で暗順応を守る。強制輝度制御はWebから不可のため配色+案内で対応 */
+.t-night { color: #b04040; }
+.t-night .main-c, .t-night .dim, .t-night .acc2 { color: #b04040; }
+.t-night .acc1 { color: #ff5a60; }   /* 警告だけは従来色を維持(安全優先) */
 </style>
 </head>
 <body>
 <div id="app"></div>
 <script>
-var BUILD='0830-0706J';
+var BUILD='0830-1230J';
 // 自動生成: tools/make_field_demo.py
 // ※[概形]ルートは主要地点を結んだ近似。実山行には gpx2route.py で実GPXを変換して差し替えること
-var ROUTES = [{"id":"harumi","name":"晴海フラッグ周回 [概形]","dist":2011,"gain":1,"poly":"_kqxEodbtYiG_HeEgDwH_IgB{Bq@qAM{@Be@Fg@`@qAp@kAr@aAp@w@x@q@`Ae@`@KfAIbADz@LxBr@zA`AzFlFr@~@z@jBf@pBRjCA`B]|EyEbK","ele":"E???A??????????@?????????????","wps":[{"d":0,"n":"晴海ふ頭公園","t":"start"},{"d":684,"n":"北端折返し","t":"wp"},{"d":1090,"n":"晴海緑道公園","t":"wp"},{"d":2011,"n":"下山口","t":"goal"}],"cts":[[0,0],[500,8],[1000,15],[1500,23],[2000,30],[2011,30]],"demo":true},{"id":"takao","name":"高尾山 1号路 往復 [概形]","dist":5551,"gain":409,"poly":"ulnxEuc`qY`AnDV~AF~AKnAUhAa@jAi@fAuBfDmC~GYlAEh@Aj@Dn@d@vAxCbGpBlDd@fAbB`GtApDlApD`CfFpApEzDdL`FlJdDtEtBfDjCnD`@x@`@hAl@~Bb@xBJnABlACj@QxAoAxFnAyFPyABk@CmAKoAc@yBm@_Ca@iAa@y@kCoDuBgDeDuEaFmJ{DeLqAqEaCgFmAqDuAqDcBaGe@gAqBmDyCcGe@wAEo@@k@Di@XmAlC_HtBgDh@gA`@kATiAJoAG_BW_BaAoD","ele":"{JGGMSU[[mA}B]MKKQa@OG]WSWMSOOMOEIMOKKGOu@t@NFJJNLHDNLNNRLVRV\\FN`@PJJL\\|BlAZZTRLFF","wps":[{"d":0,"n":"高尾山口駅","t":"start"},{"d":680,"n":"金比羅台","t":"wp"},{"d":1452,"n":"ケーブル高尾山駅","t":"hut"},{"d":2360,"n":"薬王院","t":"junction"},{"d":2775,"n":"高尾山山頂","t":"peak"},{"d":3191,"n":"薬王院","t":"junction"},{"d":4099,"n":"ケーブル高尾山駅","t":"hut"},{"d":4871,"n":"金比羅台","t":"wp"},{"d":5551,"n":"下山口","t":"goal"}],"cts":[[0,0],[500,42],[1000,63],[1500,82],[2000,96],[2500,109],[3000,133],[3500,146],[4000,156],[4500,168],[5000,192],[5500,210],[5551,210]],"demo":true},{"id":"kokyo","name":"皇居ラン 1周 [概形]","dist":5021,"gain":25,"poly":"uewxEkk~sYw@cCiAuFu@aC_AuBqAeCm@y@w@o@gHoDaEaBmEcCcBi@gDs@aBYcACcGb@iBXeBj@}EvBw@f@kAhAcEdF}FlLk@pBoAhFUnAKpAWfJ?tAJ|Bd@zFRlAl@fB~CvFl@v@bC`CdCnCjBzAtG|DdA`@`HtBvAR`A?dBIbBUbAY|@c@bFsDnAeAnGeIjCkEZa@~L{e@","ele":"K??@??????????????A??ACAC?AEAACAAC?AAAAAA??@?@@B@HD@P","wps":[{"d":0,"n":"桜田門","t":"start"},{"d":1142,"n":"大手門","t":"wp"},{"d":2024,"n":"竹橋","t":"wp"},{"d":3620,"n":"半蔵門","t":"wp"},{"d":5021,"n":"下山口","t":"goal"}],"cts":[[0,0],[500,9],[1000,15],[1500,22],[2000,30],[2500,40],[3000,48],[3500,58],[4000,65],[4500,80],[5000,80],[5021,80]],"demo":true},{"id":"fuji","name":"富士山 吉田ルート [概形]","dist":5065,"gain":1410,"poly":"{k`wEijwmYMo@Ck@FYXKd@DbBXl@@`@MRa@Du@?aCFy@Pi@`@Yl@GjBDl@Eb@URg@Dw@AeCBw@Ne@ZQfEPb@MV_@Hs@FyBHs@Ra@^Mj@DbB`@j@F^IR]Hs@@}BFw@Pg@^Qh@?bBTl@@`@MTa@Hu@D_CHu@Rc@^Mj@DpCp@`@CT[Ps@RwDRe@^Ql@@hCj@\\CRWf@iB\\y@f@k@^S\\H\\b@hArCZV^Ad@UvAcAj@Sd@?\\XXn@h@|BTr@\\\\b@Dh@Q`CyA`@C^TXl@f@rBTl@\\Zb@@h@Q|A_Aj@Sb@?ZXRn@h@nDT`@\\Ff@KvAq@n@Id@HZ^Pr@P`CLt@Tb@`@Jj@GdBg@l@Ib@DV\\Hn@FxBJv@Rd@`@Pj@?hBSj@?`@PPb@Dt@CbCDx@Nf@^Rl@?tCc@d@HV^Lp@P|BJr@T^^Hj@IdBi@n@Eb@HR^Fn@?xBHt@Vd@d@Jn@GtA}@h@Uf@?`@V\\n@z@zB\\n@`@Zb@Ad@W`BuB","ele":"aoCAAAAAEACACECCCAGCCACGACCKACACAACAECECEMGIIIWMKMO[OOOOm@OOSy@USS_AUUm@UWOOMq@OQOc@OQQQa@QOQOq@OQQc@QQQQc@QOQQq@OOO_@QQQQa@OOQO]OOOQ_@SSSUg@USSSg@SQQSw@QQOa@QMOO_@OMMKYMMOO[QOQQc@QOOM_@","wps":[{"d":0,"n":"五合目","t":"start"},{"d":1191,"n":"六合目","t":"wp"},{"d":2065,"n":"七合目","t":"hut"},{"d":3242,"n":"八合目","t":"hut"},{"d":4082,"n":"本八合目 [下山道分岐]","t":"escape"},{"d":4676,"n":"九合目","t":"wp"},{"d":5065,"n":"吉田口頂上","t":"goal"}],"cts":[[0,0],[500,14],[1000,29],[1500,55],[2000,105],[2500,145],[3000,188],[3500,232],[4000,276],[4500,317],[5000,358],[5065,358]],"demo":true}];
+var ROUTES = [{"id":"harumi","name":"晴海フラッグ周回 [概形]","dist":2011,"gain":1,"poly":"_kqxEodbtYiG_HeEgDwH_IgB{Bq@qAM{@Be@Fg@`@qAp@kAr@aAp@w@x@q@`Ae@`@KfAIbADz@LxBr@zA`AzFlFr@~@z@jBf@pBRjCA`B]|EyEbK","ele":"E???A??????????@?????????????","wps":[{"d":0,"n":"晴海ふ頭公園","t":"start"},{"d":684,"n":"北端折返し","t":"wp"},{"d":1090,"n":"晴海緑道公園","t":"wp"},{"d":2011,"n":"下山口","t":"goal"}],"cts":[[0,0],[500,8],[1000,15],[1500,23],[2000,30],[2011,30]],"demo":true,"reg":[{"n":"富士山","la":35.3606,"lo":138.7274,"el":3776,"t":"peak","v":1},{"n":"東京スカイツリー","la":35.7101,"lo":139.8107,"el":634,"t":"tower","v":1},{"n":"東京タワー","la":35.6586,"lo":139.7454,"el":333,"t":"tower","v":1},{"n":"都庁","la":35.6896,"lo":139.6917,"el":243,"t":"tower","v":0},{"n":"レインボーブリッジ","la":35.6365,"lo":139.763,"el":126,"t":"tower","v":1},{"n":"東京駅","la":35.6812,"lo":139.7671,"el":0,"t":"sta","v":0},{"n":"筑波山","la":36.225,"lo":140.106,"el":877,"t":"peak","v":0},{"n":"勝どき駅","la":35.659,"lo":139.777,"el":3,"t":"sta","v":0},{"n":"晴海トリトン","la":35.657,"lo":139.783,"el":4,"t":"shop","v":0},{"n":"ららテラスHARUMI FLAG","la":35.652,"lo":139.777,"el":4,"t":"shop","v":0}],"dec":7.5,"domain":"urban","segs":[{"a":603,"b":1106,"n":"北岸ストレート"}]},{"id":"takao","name":"高尾山 1号路 往復 [概形]","dist":5551,"gain":409,"poly":"ulnxEuc`qY`AnDV~AF~AKnAUhAa@jAi@fAuBfDmC~GYlAEh@Aj@Dn@d@vAxCbGpBlDd@fAbB`GtApDlApD`CfFpApEzDdL`FlJdDtEtBfDjCnD`@x@`@hAl@~Bb@xBJnABlACj@QxAoAxFnAyFPyABk@CmAKoAc@yBm@_Ca@iAa@y@kCoDuBgDeDuEaFmJ{DeLqAqEaCgFmAqDuAqDcBaGe@gAqBmDyCcGe@wAEo@@k@Di@XmAlC_HtBgDh@gA`@kATiAJoAG_BW_BaAoD","ele":"{JGGMSU[[mA}B]MKKQa@OG]WSWMSOOMOEIMOKKGOu@t@NFJJNLHDNLNNRLVRV\\FN`@PJJL\\|BlAZZTRLFF","wps":[{"d":0,"n":"高尾山口駅","t":"start"},{"d":680,"n":"金比羅台","t":"wp"},{"d":1452,"n":"ケーブル高尾山駅","t":"hut"},{"d":2360,"n":"薬王院","t":"junction"},{"d":2775,"n":"高尾山山頂","t":"peak"},{"d":3191,"n":"薬王院","t":"junction"},{"d":4099,"n":"ケーブル高尾山駅","t":"hut"},{"d":4871,"n":"金比羅台","t":"wp"},{"d":5551,"n":"下山口","t":"goal"}],"cts":[[0,0],[500,42],[1000,63],[1500,82],[2000,96],[2500,109],[3000,133],[3500,146],[4000,156],[4500,168],[5000,192],[5500,210],[5551,210]],"demo":true,"reg":[{"n":"富士山","la":35.3606,"lo":138.7274,"el":3776,"t":"peak","v":1},{"n":"丹沢山","la":35.475,"lo":139.162,"el":1567,"t":"peak","v":1},{"n":"大山(丹沢)","la":35.44,"lo":139.232,"el":1252,"t":"peak","v":1},{"n":"陣馬山","la":35.644,"lo":139.168,"el":855,"t":"peak","v":1},{"n":"景信山","la":35.636,"lo":139.217,"el":727,"t":"peak","v":1},{"n":"城山(高尾)","la":35.63,"lo":139.228,"el":670,"t":"peak","v":1},{"n":"高尾山","la":35.6252,"lo":139.2436,"el":599,"t":"peak","v":0},{"n":"御岳山(奥多摩)","la":35.783,"lo":139.149,"el":929,"t":"peak","v":0},{"n":"大岳山","la":35.761,"lo":139.122,"el":1266,"t":"peak","v":1},{"n":"筑波山","la":36.225,"lo":140.106,"el":877,"t":"peak","v":1},{"n":"三頭山","la":35.742,"lo":139.017,"el":1531,"t":"peak","v":1},{"n":"小仏城山","la":35.63,"lo":139.228,"el":670,"t":"peak","v":0},{"n":"東京スカイツリー","la":35.7101,"lo":139.8107,"el":634,"t":"tower","v":1},{"n":"東京タワー","la":35.6586,"lo":139.7454,"el":333,"t":"tower","v":0},{"n":"都庁","la":35.6896,"lo":139.6917,"el":243,"t":"tower","v":1},{"n":"レインボーブリッジ","la":35.6365,"lo":139.763,"el":126,"t":"tower","v":0},{"n":"東京駅","la":35.6812,"lo":139.7671,"el":0,"t":"sta","v":0},{"n":"京王高尾山温泉 極楽湯","la":35.6318,"lo":139.2712,"el":190,"t":"onsen","v":0},{"n":"高尾山口駅","la":35.6323,"lo":139.2699,"el":190,"t":"sta","v":0},{"n":"薬王院","la":35.625,"lo":139.2482,"el":520,"t":"shrine","v":0},{"n":"十一丁目茶屋","la":35.629,"lo":139.254,"el":470,"t":"shop","v":0}],"dec":7.5,"domain":"mountain","segs":[{"a":444,"b":1221,"n":"金比羅台の登り"}]},{"id":"kokyo","name":"皇居ラン 1周 [概形]","dist":5021,"gain":25,"poly":"uewxEkk~sYw@cCiAuFu@aC_AuBqAeCm@y@w@o@gHoDaEaBmEcCcBi@gDs@aBYcACcGb@iBXeBj@}EvBw@f@kAhAcEdF}FlLk@pBoAhFUnAKpAWfJ?tAJ|Bd@zFRlAl@fB~CvFl@v@bC`CdCnCjBzAtG|DdA`@`HtBvAR`A?dBIbBUbAY|@c@bFsDnAeAnGeIjCkEZa@~L{e@","ele":"K??@??????????????A??ACAC?AEAACAAC?AAAAAA??@?@@B@HD@P","wps":[{"d":0,"n":"桜田門","t":"start"},{"d":1142,"n":"大手門","t":"wp"},{"d":2024,"n":"竹橋","t":"wp"},{"d":3620,"n":"半蔵門","t":"wp"},{"d":5021,"n":"下山口","t":"goal"}],"cts":[[0,0],[500,9],[1000,15],[1500,22],[2000,30],[2500,40],[3000,48],[3500,58],[4000,65],[4500,80],[5000,80],[5021,80]],"demo":true,"reg":[{"n":"東京スカイツリー","la":35.7101,"lo":139.8107,"el":634,"t":"tower","v":1},{"n":"東京タワー","la":35.6586,"lo":139.7454,"el":333,"t":"tower","v":1},{"n":"都庁","la":35.6896,"lo":139.6917,"el":243,"t":"tower","v":1},{"n":"レインボーブリッジ","la":35.6365,"lo":139.763,"el":126,"t":"tower","v":0},{"n":"東京駅","la":35.6812,"lo":139.7671,"el":0,"t":"sta","v":0},{"n":"筑波山","la":36.225,"lo":140.106,"el":877,"t":"peak","v":0},{"n":"竹橋駅","la":35.691,"lo":139.757,"el":5,"t":"sta","v":0},{"n":"半蔵門駅","la":35.679,"lo":139.74,"el":25,"t":"sta","v":0},{"n":"桜田門駅","la":35.677,"lo":139.754,"el":5,"t":"sta","v":0},{"n":"大手町駅","la":35.685,"lo":139.766,"el":3,"t":"sta","v":0},{"n":"皇居外苑 楠公レストハウス","la":35.679,"lo":139.757,"el":4,"t":"shop","v":0}],"dec":7.5,"domain":"urban","segs":[{"a":3113,"b":3916,"n":"三宅坂の登り"}]},{"id":"fuji","name":"富士山 吉田ルート [概形]","dist":5065,"gain":1410,"poly":"{k`wEijwmYMo@Ck@FYXKd@DbBXl@@`@MRa@Du@?aCFy@Pi@`@Yl@GjBDl@Eb@URg@Dw@AeCBw@Ne@ZQfEPb@MV_@Hs@FyBHs@Ra@^Mj@DbB`@j@F^IR]Hs@@}BFw@Pg@^Qh@?bBTl@@`@MTa@Hu@D_CHu@Rc@^Mj@DpCp@`@CT[Ps@RwDRe@^Ql@@hCj@\\CRWf@iB\\y@f@k@^S\\H\\b@hArCZV^Ad@UvAcAj@Sd@?\\XXn@h@|BTr@\\\\b@Dh@Q`CyA`@C^TXl@f@rBTl@\\Zb@@h@Q|A_Aj@Sb@?ZXRn@h@nDT`@\\Ff@KvAq@n@Id@HZ^Pr@P`CLt@Tb@`@Jj@GdBg@l@Ib@DV\\Hn@FxBJv@Rd@`@Pj@?hBSj@?`@PPb@Dt@CbCDx@Nf@^Rl@?tCc@d@HV^Lp@P|BJr@T^^Hj@IdBi@n@Eb@HR^Fn@?xBHt@Vd@d@Jn@GtA}@h@Uf@?`@V\\n@z@zB\\n@`@Zb@Ad@W`BuB","ele":"aoCAAAAAEACACECCCAGCCACGACCKACACAACAECECEMGIIIWMKMO[OOOOm@OOSy@USS_AUUm@UWOOMq@OQOc@OQQQa@QOQOq@OQQc@QQQQc@QOQQq@OOO_@QQQQa@OOQO]OOOQ_@SSSUg@USSSg@SQQSw@QQOa@QMOO_@OMMKYMMOO[QOQQc@QOOM_@","wps":[{"d":0,"n":"五合目","t":"start"},{"d":1191,"n":"六合目","t":"wp"},{"d":2065,"n":"七合目","t":"hut"},{"d":3242,"n":"八合目","t":"hut"},{"d":4082,"n":"本八合目 [下山道分岐]","t":"escape"},{"d":4676,"n":"九合目","t":"wp"},{"d":5065,"n":"吉田口頂上","t":"goal"}],"cts":[[0,0],[500,14],[1000,29],[1500,55],[2000,105],[2500,145],[3000,188],[3500,232],[4000,276],[4500,317],[5000,358],[5065,358]],"demo":true,"reg":[{"n":"富士山","la":35.3606,"lo":138.7274,"el":3776,"t":"peak","v":0},{"n":"北岳","la":35.6745,"lo":138.2389,"el":3193,"t":"peak","v":1},{"n":"甲斐駒ヶ岳","la":35.758,"lo":138.237,"el":2967,"t":"peak","v":1},{"n":"仙丈ヶ岳","la":35.72,"lo":138.183,"el":3033,"t":"peak","v":1},{"n":"八ヶ岳(赤岳)","la":35.9706,"lo":138.3703,"el":2899,"t":"peak","v":1},{"n":"金峰山","la":35.872,"lo":138.628,"el":2599,"t":"peak","v":1},{"n":"丹沢山","la":35.475,"lo":139.162,"el":1567,"t":"peak","v":1},{"n":"愛鷹山","la":35.221,"lo":138.8,"el":1504,"t":"peak","v":1},{"n":"箱根山(神山)","la":35.233,"lo":139.021,"el":1438,"t":"peak","v":1},{"n":"天城山","la":34.864,"lo":139.006,"el":1406,"t":"peak","v":1},{"n":"三ツ峠山","la":35.548,"lo":138.809,"el":1785,"t":"peak","v":1},{"n":"御正体山","la":35.51,"lo":138.964,"el":1682,"t":"peak","v":1},{"n":"杓子山","la":35.458,"lo":138.846,"el":1598,"t":"peak","v":1},{"n":"東京タワー","la":35.6586,"lo":139.7454,"el":333,"t":"tower","v":0},{"n":"都庁","la":35.6896,"lo":139.6917,"el":243,"t":"tower","v":0},{"n":"レインボーブリッジ","la":35.6365,"lo":139.763,"el":126,"t":"tower","v":0},{"n":"東京駅","la":35.6812,"lo":139.7671,"el":0,"t":"sta","v":0},{"n":"五合目レストハウス","la":35.3966,"lo":138.7333,"el":2305,"t":"shop","v":0},{"n":"山口屋(本八合)","la":35.3732,"lo":138.7368,"el":3400,"t":"hut","v":0},{"n":"富士山ホテル(本八合)","la":35.3735,"lo":138.7372,"el":3380,"t":"hut","v":0}],"dec":7.5,"domain":"mountain","segs":[]}];
+// 精選星表(輝星69+星座20) tools/make_stars.py
+var STARS = {"s":[["シリウス",6.752,-16.72,-1.46,"CMa"],["カノープス",6.399,-52.7,-0.74,""],["アークトゥルス",14.261,19.18,-0.05,"Boo"],["ベガ",18.616,38.78,0.03,"Lyr"],["カペラ",5.278,46.0,0.08,"Aur"],["リゲル",5.242,-8.2,0.13,"Ori"],["プロキオン",7.655,5.22,0.34,"CMi"],["ベテルギウス",5.919,7.41,0.42,"Ori"],["アルタイル",19.846,8.87,0.77,"Aql"],["アルデバラン",4.599,16.51,0.86,"Tau"],["スピカ",13.42,-11.16,0.97,"Vir"],["アンタレス",16.49,-26.43,1.06,"Sco"],["ポルックス",7.755,28.03,1.14,"Gem"],["フォーマルハウト",22.961,-29.62,1.16,"PsA"],["デネブ",20.69,45.28,1.25,"Cyg"],["レグルス",10.139,11.97,1.36,"Leo"],["カストル",7.577,31.89,1.58,"Gem"],["ベラトリクス",5.418,6.35,1.64,"Ori"],["エルナト",5.438,28.61,1.65,"Tau"],["アルニラム",5.604,-1.2,1.69,"Ori"],["アルニタク",5.679,-1.94,1.77,"Ori"],["アリオト",12.9,55.96,1.77,"UMa"],["カフ",0.153,59.15,2.27,"Cas"],["シェダル",0.675,56.54,2.23,"Cas"],["ツィー",0.945,60.72,2.47,"Cas"],["ルクバー",1.43,60.24,2.68,"Cas"],["セギン",1.907,63.67,3.38,"Cas"],["ドゥーベ",11.062,61.75,1.79,"UMa"],["メラク",11.031,56.38,2.37,"UMa"],["フェクダ",11.897,53.69,2.44,"UMa"],["メグレズ",12.257,57.03,3.31,"UMa"],["ミザール",13.399,54.93,2.27,"UMa"],["アルカイド",13.792,49.31,1.86,"UMa"],["ポラリス(北極星)",2.53,89.26,1.98,"UMi"],["ミンタカ",5.533,-0.3,2.23,"Ori"],["サイフ",5.796,-9.67,2.09,"Ori"],["アルビレオ",19.512,27.96,3.18,"Cyg"],["サドル",20.371,40.26,2.2,"Cyg"],["ギェナー",20.77,33.97,2.46,"Cyg"],["δCyg",19.749,45.13,2.87,"Cyg"],["シャウラ",17.56,-37.1,1.63,"Sco"],["サルガス",17.622,-43.0,1.87,"Sco"],["ζSco",16.91,-42.36,3.62,"Sco"],["δSco",16.005,-22.62,2.32,"Sco"],["βSco",16.091,-19.81,2.62,"Sco"],["デネボラ",11.818,14.57,2.13,"Leo"],["アルギエバ",10.333,19.84,2.28,"Leo"],["ゾスマ",11.235,20.52,2.56,"Leo"],["ハマル",2.12,23.46,2.0,"Ari"],["ミラク",1.162,35.62,2.06,"And"],["アルフェラッツ",0.14,29.09,2.06,"And"],["アルマク",2.065,42.33,2.26,"And"],["マルカブ",23.079,15.21,2.48,"Peg"],["シェアト",23.063,28.08,2.42,"Peg"],["アルゲニブ",0.221,15.18,2.84,"Peg"],["アルヘナ",6.629,16.4,1.92,"Gem"],["メンカリナン",5.992,44.95,1.9,"Aur"],["εBoo",14.75,27.07,2.37,"Boo"],["ηBoo",13.911,18.4,2.68,"Boo"],["ラサルハゲ",17.582,12.56,2.08,"Oph"],["ζAql",19.09,13.86,2.99,"Aql"],["θAql",20.188,-0.82,3.24,"Aql"],["シェリアク",18.834,33.36,3.52,"Lyr"],["スラファト",18.982,32.69,3.24,"Lyr"],["ミラ",2.322,-2.98,3.04,"Cet"],["ディフダ",0.726,-17.99,2.04,"Cet"],["アルフェッカ",15.578,26.71,2.23,"CrB"],["カペラ南のι Aur",4.95,33.17,2.69,"Aur"],["θAur",5.995,37.21,2.65,"Aur"]],"c":{"Ori":{"n":"オリオン座","l":[[7,17],[17,34],[34,19],[19,20],[20,7],[34,5],[20,35],[35,5]]},"UMa":{"n":"北斗七星","l":[[27,28],[28,29],[29,30],[30,21],[21,31],[31,32],[30,27]]},"Cas":{"n":"カシオペヤ座","l":[[22,23],[23,24],[24,25],[25,26]]},"Cyg":{"n":"はくちょう座","l":[[14,37],[37,36],[37,38],[37,39]]},"Sco":{"n":"さそり座","l":[[44,43],[43,11],[11,42],[42,41],[41,40]]},"Leo":{"n":"しし座","l":[[15,46],[46,47],[47,45],[45,15]]},"Gem":{"n":"ふたご座","l":[[16,12],[12,55]]},"Aur":{"n":"ぎょしゃ座","l":[[4,56],[56,68],[68,18],[18,67],[67,4]]},"Boo":{"n":"うしかい座","l":[[2,57],[2,58]]},"Lyr":{"n":"こと座","l":[[3,62],[62,63],[63,3]]},"Aql":{"n":"わし座","l":[[8,60],[8,61]]},"Peg":{"n":"ペガスス座(秋の四辺形)","l":[[52,53],[53,50],[50,54],[54,52]]},"And":{"n":"アンドロメダ座","l":[[50,49],[49,51]]},"Tau":{"n":"おうし座","l":[[9,18]]},"UMi":{"n":"こぐま座","l":[]},"CMa":{"n":"おおいぬ座","l":[]},"CMi":{"n":"こいぬ座","l":[]},"Vir":{"n":"おとめ座","l":[]},"CrB":{"n":"かんむり座","l":[]},"Cet":{"n":"くじら座","l":[]}}};
+</script>
+<script>
+/* ============================================================
+ * astro.js — 天文計算(ラベル用途 ±1°級 / オフライン完結)
+ *  恒星: J2000 RA/Dec → 方位・仰角
+ *  太陽: Meeus低精度式(±0.01°) / 月: 打ち切り級数(±0.5°)
+ *  惑星: 平均ケプラー要素(JPL近似, 数十年で±1°級)
+ * ============================================================ */
+var ASTRO = (function () {
+  'use strict';
+  var D2R = Math.PI / 180, R2D = 180 / Math.PI;
+  function norm(x) { x = x % 360; return x < 0 ? x + 360 : x; }
+  function jd(ms) { return ms / 86400000 + 2440587.5; }
+
+  function gmst(ms) {   // 度
+    var d = jd(ms) - 2451545.0;
+    return norm(280.46061837 + 360.98564736629 * d);
+  }
+  // RA(時)・Dec(度) → {alt, az}(度, azは真北0時計回り)
+  function altAz(raH, dec, lat, lon, ms) {
+    var lst = norm(gmst(ms) + lon);
+    var H = (lst - raH * 15) * D2R;
+    var f = lat * D2R, d = dec * D2R;
+    var alt = Math.asin(Math.sin(f) * Math.sin(d) + Math.cos(f) * Math.cos(d) * Math.cos(H));
+    var az = Math.atan2(Math.sin(H), Math.cos(H) * Math.sin(f) - Math.tan(d) * Math.cos(f));
+    return { alt: alt * R2D, az: norm(az * R2D + 180) };
+  }
+  function eclToEq(lam, bet, ms) {   // 黄経黄緯(度) → {ra時, dec度}
+    var n = jd(ms) - 2451545.0;
+    var eps = (23.439 - 0.0000004 * n) * D2R;
+    var l = lam * D2R, b = bet * D2R;
+    var ra = Math.atan2(Math.sin(l) * Math.cos(eps) - Math.tan(b) * Math.sin(eps), Math.cos(l));
+    var dec = Math.asin(Math.sin(b) * Math.cos(eps) + Math.cos(b) * Math.sin(eps) * Math.sin(l));
+    return { ra: norm(ra * R2D) / 15, dec: dec * R2D };
+  }
+  function sunEcl(ms) {   // 太陽の視黄経(度)
+    var n = jd(ms) - 2451545.0;
+    var L = norm(280.460 + 0.9856474 * n);
+    var g = norm(357.528 + 0.9856003 * n) * D2R;
+    return norm(L + 1.915 * Math.sin(g) + 0.020 * Math.sin(2 * g));
+  }
+  function sunEq(ms) { return eclToEq(sunEcl(ms), 0, ms); }
+  function sunAltAz(lat, lon, ms) {
+    var e = sunEq(ms); return altAz(e.ra, e.dec, lat, lon, ms);
+  }
+  function moonEcl(ms) {   // 月の黄経黄緯(度, 打ち切り)
+    var T = (jd(ms) - 2451545.0) / 36525;
+    var s = function (a, b) { return Math.sin(norm(a + b * T) * D2R); };
+    var lam = norm(218.32 + 481267.881 * T
+      + 6.29 * s(135.0, 477198.87) - 1.27 * s(259.3, -413335.36)
+      + 0.66 * s(235.7, 890534.22) + 0.21 * s(269.9, 954397.74)
+      - 0.19 * s(357.5, 35999.05) - 0.11 * s(186.5, 966404.03));
+    var bet = 5.13 * s(93.3, 483202.02) + 0.28 * s(228.2, 960400.89)
+      - 0.28 * s(318.3, 6003.15) - 0.17 * s(217.6, -407332.21);
+    return { lam: lam, bet: bet };
+  }
+  function moonEq(ms) { var m = moonEcl(ms); return eclToEq(m.lam, m.bet, ms); }
+
+  /* ---- 惑星(平均ケプラー要素 J2000 + 世紀変化率) ---- */
+  var EL = {
+    '水星': [0.38709927,0.20563593,7.00497902,252.25032350,77.45779628,48.33076593,
+             0.00000037,0.00001906,-0.00594749,149472.67411175,0.16047689,-0.12534081],
+    '金星': [0.72333566,0.00677672,3.39467605,181.97909950,131.60246718,76.67984255,
+             0.00000390,-0.00004107,-0.00078890,58517.81538729,0.00268329,-0.27769418],
+    '_地球': [1.00000261,0.01671123,-0.00001531,100.46457166,102.93768193,0.0,
+             0.00000562,-0.00004392,-0.01294668,35999.37244981,0.32327364,0.0],
+    '火星': [1.52371034,0.09339410,1.84969142,-4.55343205,-23.94362959,49.55953891,
+             0.00001847,0.00007882,-0.00813131,19140.30268499,0.44441088,-0.29257343],
+    '木星': [5.20288700,0.04838624,1.30439695,34.39644051,14.72847983,100.47390909,
+             -0.00011607,-0.00013253,-0.00183714,3034.74612775,0.21252668,0.20469106],
+    '土星': [9.53667594,0.05386179,2.48599187,49.95424423,92.59887831,113.66242448,
+             -0.00125060,-0.00050991,0.00193609,1222.49362201,-0.41897216,-0.28867794]
+  };
+  function helio(el, T) {
+    var a = el[0] + el[6] * T, e = el[1] + el[7] * T, I = (el[2] + el[8] * T) * D2R;
+    var L = el[3] + el[9] * T, w = el[4] + el[10] * T, O = el[5] + el[11] * T;
+    var M = norm(L - w) * D2R, om = (w - O) * D2R, Om = O * D2R;
+    var E = M;
+    for (var i = 0; i < 8; i++) E = M + e * Math.sin(E);
+    var xv = a * (Math.cos(E) - e), yv = a * Math.sqrt(1 - e * e) * Math.sin(E);
+    var cO = Math.cos(Om), sO = Math.sin(Om), co = Math.cos(om), so = Math.sin(om), cI = Math.cos(I), sI = Math.sin(I);
+    return [
+      xv * (cO * co - sO * so * cI) - yv * (cO * so + sO * co * cI),
+      xv * (sO * co + cO * so * cI) - yv * (sO * so - cO * co * cI),
+      xv * (so * sI) + yv * (co * sI)
+    ];
+  }
+  var PMAG = { '水星': 0.2, '金星': -4.2, '火星': 0.8, '木星': -2.4, '土星': 0.6 };
+  function planets(ms) {
+    var T = (jd(ms) - 2451545.0) / 36525;
+    var e = helio(EL['_地球'], T);
+    var out = [];
+    for (var k in EL) {
+      if (k === '_地球') continue;
+      var p = helio(EL[k], T);
+      var x = p[0] - e[0], y = p[1] - e[1], z = p[2] - e[2];
+      var lam = norm(Math.atan2(y, x) * R2D);
+      var bet = Math.atan2(z, Math.sqrt(x * x + y * y)) * R2D;
+      var eq = eclToEq(lam, bet, ms);
+      out.push({ n: k, ra: eq.ra, dec: eq.dec, mag: PMAG[k], t: 'planet' });
+    }
+    return out;
+  }
+
+  return { gmst: gmst, altAz: altAz, sunEq: sunEq, sunEcl: sunEcl, sunAltAz: sunAltAz,
+           moonEq: moonEq, moonEcl: moonEcl, planets: planets, eclToEq: eclToEq };
+})();
+if (typeof module !== 'undefined') module.exports = ASTRO;
 </script>
 <script>
 /* ============================================================
@@ -150,7 +265,8 @@ var CORE = (function () {
       pts: pts, cum: cum, gcum: gcum,
       total: cum[cum.length - 1], gainTotal: gcum[gcum.length - 1],
       wps: r.wps || [], cts: r.cts || null,
-      ctTotal: r.cts ? r.cts[r.cts.length - 1][1] : null
+      ctTotal: r.cts ? r.cts[r.cts.length - 1][1] : null,
+      reg: r.reg || [], dec: r.dec || 7.5, domain: r.domain || 'mountain', segs: r.segs || []
     };
   }
 
@@ -212,11 +328,21 @@ var CORE = (function () {
       ncts.push([Math.round(ntotal), Math.round(ctTot)]);
       ncts.sort(function (x, y) { return x[0] - y[0]; });
     }
+    // 区間は回転写像(原点を跨ぐものは落とす: 跨ぎ分割は複雑さに見合わない)
+    var nsegs = [];
+    if (route.segs) {
+      for (i = 0; i < route.segs.length; i++) {
+        var sg = route.segs[i];
+        var na2 = (sg.a - offAlong + total) % total, nb2 = (sg.b - offAlong + total) % total;
+        if (na2 < nb2) nsegs.push({ a: Math.round(na2), b: Math.round(nb2), n: sg.n });
+      }
+    }
     return {
       id: route.id, name: route.name, demo: route.demo,
       pts: np, cum: ncum, gcum: ngcum,
       total: ntotal, gainTotal: ngcum[ngcum.length - 1],
-      wps: nwps, cts: ncts, ctTotal: route.ctTotal, rotatedFrom: offAlong
+      wps: nwps, cts: ncts, ctTotal: route.ctTotal, rotatedFrom: offAlong,
+      reg: route.reg, dec: route.dec, domain: route.domain, segs: nsegs
     };
   }
 
@@ -335,6 +461,21 @@ var CORE = (function () {
     return { min: null, method: 'none', ratio: null };
   }
 
+  // CT累積分 → 沿道距離(標準CT歩行者=ゴーストの現在位置)
+  function ctInverse(route, min) {
+    if (!route.cts) return null;
+    var a = route.cts;
+    if (min <= a[0][1]) return a[0][0];
+    for (var i = 1; i < a.length; i++) {
+      if (min <= a[i][1]) {
+        var f = (min - a[i - 1][1]) / Math.max(a[i][1] - a[i - 1][1], 1e-9);
+        return a[i - 1][0] + f * (a[i][0] - a[i - 1][0]);
+      }
+    }
+    return a[a.length - 1][0];
+  }
+  function angDiff(a, b) { return ((a - b + 540) % 360) - 180; }   // 符号付き -180..180
+
   /* ---------- 日没 (NOAA式・オフライン) ---------- */
   function sunEventUTC(dateUTCms, lat, lng, rise) {
     // dateUTCms: その日の00:00UTC。戻り値: UTC分(その日基準)。極夜/白夜はnull
@@ -424,7 +565,7 @@ var CORE = (function () {
     buildRoute: buildRoute,
     projectRange: projectRange, matchLocal: matchLocal,
     remaining: remaining, gainAt: gainAt, routePointAt: routePointAt,
-    ctAt: ctAt, etaRemainMin: etaRemainMin,
+    ctAt: ctAt, ctInverse: ctInverse, angDiff: angDiff, etaRemainMin: etaRemainMin,
     sunTimes: sunTimes,
     createDevFSM: createDevFSM,
     isLoop: isLoop, rotateLoop: rotateLoop,
@@ -448,7 +589,7 @@ if (typeof module !== 'undefined') module.exports = CORE;
   // センサー診断(実機で方位が取れない問題の切り分け用。ready画面で↓表示)
   var DIAG = { oriFn: '?', motFn: '?', oriPerm: '-', motPerm: '-', reqMs: 0, retryN: 0,
                absN: 0, oriN: 0, motN: 0, alpha: null, wkc: null, absFlag: null,
-               raw: null, rawErr: '', fixW: 0, fixP: 0 };
+               raw: null, rawErr: '', fixW: 0, fixP: 0, beta: null, gamma: null };
 
   /* ---------------- 状態(単一オブジェクト) ---------------- */
   var S = {
@@ -458,6 +599,11 @@ if (typeof module !== 'undefined') module.exports = CORE;
     theme: 'y',               // y=黄(高輝度) w=白
     perm: '', starting: false, startFailed: false, sensorsReady: false, diag: false,
     startCands: null, startIdx: 0, startManual: false, startSuggested: false, readyGeo: null,
+    identLayer: 'ground', identFilter: 0, identSel: 0, night: false,
+    lap: 1, lapTimes: [], lapStartMs: 0, segState: null, segPB: {},
+    ghost: null, ghostSrc: '', prevGhostGap: null, overtakeArmed: true,
+    ceremonyDone: {}, summitLog: [],
+    home: lsGet('thud.home'),
     tracking: false,
     startMs: 0, movingMin: 0, stopMin: 0,
     lastFix: null, lastFixReal: 0, lastGoodFixReal: 0,
@@ -477,6 +623,13 @@ if (typeof module !== 'undefined') module.exports = CORE;
 
   /* ---------------- 時刻(simは加速クロック) ---------------- */
   var simClockOff = 0;
+  (function () {   // ?t=HH:MM で時計を上書き(星空・日没の机上検証)
+    var m = /[?&]t=(\d{1,2}):(\d{2})/.exec(location.search);
+    if (m) {
+      var d = new Date(); d.setHours(+m[1], +m[2], 0, 0);
+      simClockOff = d.getTime() - Date.now();
+    }
+  })();
   function nowMs() { return Date.now() + simClockOff; }
   function nowDate() { return new Date(nowMs()); }
 
@@ -501,7 +654,11 @@ if (typeof module !== 'undefined') module.exports = CORE;
       if (sim.lostUntil > realNow) return;             // GPS喪失注入
       var dt = 1 * sim.mul;                             // sim秒
       simClockOff += (dt - 1) * 1000;                   // simクロック加速
-      if (!sim.paused) sim.along = Math.min(S.route.total, sim.along + sim.mps * dt);
+      if (!sim.paused) {
+        sim.along += sim.mps * dt;
+        if (CORE.isLoop(S.route)) { if (sim.along >= S.route.total) sim.along -= S.route.total; }
+        else sim.along = Math.min(S.route.total, sim.along);
+      }
       var p = CORE.routePointAt(S.route, sim.along);
       var pos = [p.la, p.lo];
       if (sim.offset) {                                 // 逸脱注入(進行方向と直交)
@@ -515,7 +672,7 @@ if (typeof module !== 'undefined') module.exports = CORE;
       pos = CORE.destPoint(pos[0], pos[1], Math.random() * 360, Math.abs(gauss()) * sigma);
       // 方位: 進行方向+ゆらぎ
       var ah2 = CORE.routePointAt(S.route, Math.min(S.route.total, sim.along + 40));
-      S.heading = (CORE.bearing([p.la, p.lo], [ah2.la, ah2.lo]) + gauss() * 8 + 360) % 360;
+      S.heading = (CORE.bearing([p.la, p.lo], [ah2.la, ah2.lo]) + (sim.headOff || 0) + gauss() * 8 + 360) % 360;
       S.headingReal = Date.now(); S.headingSettled = true;
       cb({ la: pos[0], lo: pos[1], acc: acc, t: nowMs() });
     }
@@ -600,6 +757,8 @@ if (typeof module !== 'undefined') module.exports = CORE;
     return function (e) {
       if (isAbs) DIAG.absN++; else DIAG.oriN++;
       DIAG.alpha = e.alpha; DIAG.wkc = e.webkitCompassHeading; DIAG.absFlag = e.absolute;
+      if (e.beta != null) DIAG.beta = e.beta;      // 仰角スパイク用(N7bの前提データ)
+      if (e.gamma != null) DIAG.gamma = e.gamma;
       var h = null;
       if (e.webkitCompassHeading != null) h = e.webkitCompassHeading;   // iOS系
       else if (e.alpha != null) {
@@ -680,6 +839,12 @@ if (typeof module !== 'undefined') module.exports = CORE;
     } catch (e) {}
   }
 
+  function headingTrue() {   // 磁方位→真方位(西偏を減算)。ラベル照合は必ずこちらを使う
+    if (S.heading == null) return null;
+    var dec = (S.route && S.route.dec) || 7.5;
+    return ((S.heading - dec) % 360 + 360) % 360;
+  }
+
   /* ================= 履歴ナビゲーション ================= */
   var backFlag = '';   // 'suppress' | 'auto' | ''
   function goBack(flag) { backFlag = flag || ''; try { history.back(); } catch (e) {} }
@@ -698,6 +863,10 @@ if (typeof module !== 'undefined') module.exports = CORE;
   window.addEventListener('popstate', function (e) {
     var target = (e.state && e.state.s) || 'select';
     var from = S.mode;
+    if ((from === 'ident' || from === 'cere') && target === 'main') {
+      setNight(false); S.mode = 'main'; render(); return;
+    }
+    if (from === 'warn' && (target === 'ident')) { S.mode = 'ident'; render(); return; }
     if (from === 'warn' && target === 'main') {
       // 手動クローズ(戻る)で逸脱継続中 → 60秒は再警告しない
       if (backFlag === '' && S.dev && S.dev.state.deviated) S.graceUntil = nowMs() + 60000;
@@ -778,6 +947,13 @@ if (typeof module !== 'undefined') module.exports = CORE;
       S.cursor = null; S.emaKmh = 0; S.midJoinChecked = false;
     }
     S.dev = CORE.createDevFSM({ trig: 50, clear: 35, need: 3, accMax: 75 });
+    if (!restore) {
+      S.lap = 1; S.lapTimes = []; S.lapStartMs = nowMs(); S.segState = null;
+      S.ceremonyDone = {}; S.summitLog = []; S.prevGhostGap = null; S.overtakeArmed = true;
+      var lastTk = lsGet('thud.lastTrack.' + S.route.id);
+      if (lastTk && lastTk.length > 8) { S.ghost = { samples: lastTk }; S.ghostSrc = 'last'; }
+      else { S.ghost = null; S.ghostSrc = 'ct'; }
+    }
     S.lastMoveMs = nowMs(); S.moving = true;
     S.sun = CORE.sunTimes(S.route.pts[0][0], S.route.pts[0][1], nowDate());
     Geo.start(onFix, onGeoErr);
@@ -829,11 +1005,120 @@ if (typeof module !== 'undefined') module.exports = CORE;
       var p = CORE.routePointAt(S.route, w.d);
       if (CORE.hav([f.la, f.lo], [p.la, p.lo]) < 30) {
         S.wpPassed[w.d] = true;
-        wpFlash(w.n + ' 通過');
+        if (w.t === 'peak' && !S.ceremonyDone[w.n]) { startCeremony(w); }
+        else wpFlash(w.n + ' 通過');
       }
     }
   }
+  function startCeremony(w) {                             // N5: 登頂儀式(1山行1山頂1回)
+    S.ceremonyDone[w.n] = true;
+    var col = lsGet('thud.peaks') || {};
+    var isNew = !col[w.n];
+    col[w.n] = Date.now(); lsSet('thud.peaks', col);
+    var total = Object.keys(col).length;
+    S.summitLog.push(w.n);
+    var p = CORE.routePointAt(S.route, w.d);
+    var el = S.route.pts[p.seg] ? Math.round(S.route.pts[p.seg][2]) : null;
+    S.cereData = { n: w.n, el: el, total: total, isNew: isNew };
+    if (S.mode === 'main') { pushScreen('cere'); S.mode = 'cere'; render(); }
+    else wpFlash(w.n + ' 登頂! 通算' + total + '座');
+  }
+  function scrCeremony() {
+    var c = S.cereData || {};
+    return '<div class="abs ctr" style="top:120px"><div class="sub acc2">登頂</div>' +
+      '<div class="big1 main-c" style="font-size:64px;margin-top:10px">' + esc(c.n || '') + '</div>' +
+      (c.el != null ? '<div class="big2 main-c">' + c.el + 'm</div>' : '') + '</div>' +
+      '<div class="abs ctr" style="top:360px"><span class="eta1">通算 ' + (c.total || 1) + ' 座目' +
+      (c.isNew ? '' : ' <span class="dim sub">(再登頂)</span>') + '</span></div>' +
+      '<div class="abs ctr" style="bottom:40px"><span class="hint dim">ピンチ: 山座同定へ ／ 戻る</span></div>';
+  }
   function wpFlash(msg) { S.wpFlashMsg = msg; S.wpFlashUntil = nowMs() + 8000; }
+
+  function isLoopRoute() { return CORE.isLoop(S.route); }
+  function checkLapAndSegs(t) {
+    if (!S.tracking || !S.proj) return;
+    if (isLoopRoute() && S.along > S.route.total - 30 && S.lastFix &&
+        CORE.hav([S.lastFix.la, S.lastFix.lo], [S.route.pts[0][0], S.route.pts[0][1]]) < 30) {
+      var lapSec = (t - S.lapStartMs) / 1000;
+      if (lapSec > 120) {                                  // 誤発火防止
+        S.lapTimes.push(Math.round(lapSec));
+        if (S.lap === 1 && S.track.length > 4) {
+          S.ghost = { samples: S.track.map(function (s) { return [s[0], s[3] || 0]; }) };
+          S.ghostSrc = 'lap1';
+          wpFlash('Lap ' + S.lap + ' ' + CORE.fmtDur(lapSec / 60) + ' — 1周目の自分が背中に');
+        } else {
+          wpFlash('Lap ' + S.lap + ' ' + CORE.fmtDur(lapSec / 60));
+        }
+        S.lap++; S.lapStartMs = t;
+        S.along = 0; S.cursor = 0; S.maxAlong = 0;          // マッチャー巻き戻し(v3レビュー指摘)
+        S.wpPassed = {}; S.segState = null; S.prevGhostGap = null;
+      }
+    }
+    var segs = S.route.segs || [];
+    for (var i = 0; i < segs.length && i < 3; i++) {
+      var sg = segs[i];
+      if (!S.segState && S.along >= sg.a && S.along < sg.b) {
+        var pb = (lsGet('thud.seg.' + S.route.id) || {})[sg.n];
+        S.segState = { n: sg.n, b: sg.b, t0: t };
+        wpFlash('⚔ ' + sg.n + (pb ? ' PB ' + CORE.fmtDur(pb / 60) : ''));
+      } else if (S.segState && S.segState.n === sg.n && S.along >= sg.b) {
+        var sec = Math.round((t - S.segState.t0) / 1000);
+        var key = 'thud.seg.' + S.route.id;
+        var all = lsGet(key) || {};
+        var old = all[sg.n];
+        if (!old || sec < old) { all[sg.n] = sec; lsSet(key, all); wpFlash(sg.n + ' ' + CORE.fmtDur(sec / 60) + ' 自己ベスト!'); }
+        else wpFlash(sg.n + ' ' + CORE.fmtDiff((sec - old) / 60) + ' (PB比)');
+        S.segState = null;
+      }
+    }
+    var gA = ghostAlongNow();
+    if (gA != null && S.proj) {
+      var gap = S.along - gA;
+      if (S.prevGhostGap != null) {
+        if (S.overtakeArmed && S.prevGhostGap < -20 && gap > 0) {
+          wpFlash('ゴーストを抜いた!'); S.overtakeArmed = false;
+        }
+        if (!S.overtakeArmed && gap < -20) S.overtakeArmed = true;
+      }
+      S.prevGhostGap = gap;
+    }
+  }
+
+  // 背中オーバーレイ(覗き窓表現: 点+距離+接近率。人型は単眼20px級で潰れるため不採用)
+  var ghostDistHist = [];
+  function ghostOverlayHtml() {
+    if (S.mode !== 'main' || !S.tracking || !S.proj) return '';
+    var st = staleInfo();
+    if (st.sec > 90 || offRouteNow() || !S.headingSettled) return '';   // 正直さゲート
+    var gA = ghostAlongNow();
+    if (gA == null) return '';
+    var ht = headingTrue(); if (ht == null) return '';
+    var gp = CORE.routePointAt(S.route, gA);
+    var me = [S.lastFix.la, S.lastFix.lo];
+    var dist = CORE.hav(me, [gp.la, gp.lo]);
+    if (gA <= S.along) {
+      S.ghostBehind = (S.along - gA < 500) ? Math.round(dist) : null;
+      return '';
+    }
+    S.ghostBehind = null;
+    var rel = CORE.angDiff(CORE.bearing(me, [gp.la, gp.lo]), ht);
+    if (Math.abs(rel) > 25 || dist > 150) return '';
+    var x = 300 + rel * (270 / 25);
+    var rr = Math.max(4, Math.min(22, 22 - dist / 8));
+    var t = Date.now();
+    ghostDistHist.push([t, dist]);
+    while (ghostDistHist.length && t - ghostDistHist[0][0] > 10000) ghostDistHist.shift();
+    var trend = '';
+    if (ghostDistHist.length > 3) {
+      var dd = dist - ghostDistHist[0][1];
+      trend = dd < -3 ? '▼' : (dd > 3 ? '▲' : '');
+    }
+    return '<div class="abs" style="top:64px;left:0;right:0;height:70px;pointer-events:none">' +
+      '<svg viewBox="0 0 600 70" width="600" height="70">' +
+      '<circle cx="' + x.toFixed(0) + '" cy="30" r="' + rr.toFixed(0) + '" fill="none" stroke="#6b675c" stroke-width="3"/>' +
+      '<text x="' + x.toFixed(0) + '" y="64" fill="#6b675c" font-size="16" text-anchor="middle" font-family="inherit">' +
+      Math.round(dist) + 'm' + trend + '</text></svg></div>';
+  }
   function manualWp() {                                  // 次WPパネルのEnter: 手動補正
     var w = nextWp();
     if (!w) return;
@@ -855,7 +1140,8 @@ if (typeof module !== 'undefined') module.exports = CORE;
     if (!S.tracking || !S.dev) return;
     var d = S.dev.state.deviated;
     var t = nowMs();
-    if (d && S.mode === 'main' && t >= S.suppressUntil && t >= S.graceUntil) {
+    if (d && (S.mode === 'main' || S.mode === 'ident' || S.mode === 'cere') && t >= S.suppressUntil && t >= S.graceUntil) {
+      if (S.mode !== 'main') setNight(false);
       pushScreen('warn'); S.mode = 'warn'; render();
     } else if (!d && S.mode === 'warn') {
       goBack('auto');                                    // 復帰で自動解除
@@ -872,6 +1158,14 @@ if (typeof module !== 'undefined') module.exports = CORE;
       moving: S.movingMin, stop: S.stopMin,
       ctRatio: (ctDone && ctDone > 10) ? (S.movingMin / ctDone) : null
     };
+    S.finished.laps = S.lapTimes.slice();
+    S.finished.summits = S.summitLog.slice();
+    S.finished.peakTotal = Object.keys(lsGet('thud.peaks') || {}).length;
+    var gd = CORE.ctAt(S.route, S.maxAlong);
+    S.finished.ghostDiff = (gd && gd > 10) ? (S.movingMin - gd) : null;
+    if (S.track.length > 8) {
+      lsSet('thud.lastTrack.' + S.route.id, S.track.map(function (s) { return [s[0], s[3] || 0]; }));
+    }
     lsDel('thud.active');
     lsSet('thud.lastResult', { routeId: S.route.id, at: Date.now(), sum: S.finished });
   }
@@ -916,11 +1210,13 @@ if (typeof module !== 'undefined') module.exports = CORE;
     S.moving = (t - S.lastMoveMs) < 90000;
     if (S.moving) S.movingMin += dtMin; else S.stopMin += dtMin;
     // トラック記録(F8: 60秒ごと)
-    if (S.lastFix && t - S.lastTrackMs >= 60000) {
+    if (S.lastFix && t - S.lastTrackMs >= 15000) {   // v3: 背中ソース用に15秒へ
       S.lastTrackMs = t;
-      S.track.push([Math.round(t / 1000), +S.lastFix.la.toFixed(5), +S.lastFix.lo.toFixed(5)]);
+      S.track.push([Math.round((t - S.startMs) / 1000), +S.lastFix.la.toFixed(5), +S.lastFix.lo.toFixed(5), Math.round(S.along)]);
+      if (S.track.length > 2400) S.track = S.track.filter(function (_, i) { return i % 2 === 0; });
       saveActive();
     }
+    checkLapAndSegs(t);
     // 日没90分前通知(1回)
     if (S.sun && S.sun.sunset && !S.sunNotice) {
       var remMin = (S.sun.sunset.getTime() - t) / 60000;
@@ -1011,6 +1307,15 @@ if (typeof module !== 'undefined') module.exports = CORE;
       return;
     }
     if (S.mode === 'ready') {
+      if (S.diag && k === 'Enter') {                        // 診断内ピンチ=自宅登録/削除(2度押し確認)
+        var g0 = DIAG.raw || S.readyGeo;
+        if (S.homeConfirm) {
+          if (S.home) { S.home = null; lsDel('thud.home'); wpFlash('自宅を削除しました'); }
+          else if (g0) { S.home = { la: g0.la, lo: g0.lo }; lsSet('thud.home', S.home); wpFlash('ここを自宅に登録(端末外に出ません)'); }
+          S.homeConfirm = false;
+        } else { S.homeConfirm = true; wpFlash(S.home ? 'もう一度ピンチで自宅を削除' : 'もう一度ピンチでここを自宅に'); }
+        render(); return;
+      }
       if ((k === 'ArrowDown' || k === 'ArrowUp') && !S.diag) diagGeoLast = 0;  // 開いた瞬間に測位
       if (S.diag && (k === 'ArrowLeft' || k === 'ArrowRight')) {
         S.hmode = (S.hmode === 'inv') ? 'alpha' : 'inv';
@@ -1034,12 +1339,29 @@ if (typeof module !== 'undefined') module.exports = CORE;
       return;
     }
     if (S.mode === 'main') {
-      if (k === 'ArrowLeft')  { S.panel = (S.panel + 3) % 4; if (S.panel === 3 && !S.wx) fetchWeather(); render(); }
-      if (k === 'ArrowRight') { S.panel = (S.panel + 1) % 4; if (S.panel === 3 && !S.wx) fetchWeather(); render(); }
-      if (k === 'ArrowUp')    { S.theme = 'y'; applyTheme(); }
-      if (k === 'ArrowDown')  { S.theme = 'w'; applyTheme(); }
-      if (k === 'Enter' && S.panel === 1) manualWp();   // WP確認は次WPパネル表示中のみ
+      if (k === 'ArrowLeft')  { S.panel = (S.panel + 4) % 5; if (S.panel === 4 && !S.wx) fetchWeather(); render(); }
+      if (k === 'ArrowRight') { S.panel = (S.panel + 1) % 5; if (S.panel === 4 && !S.wx) fetchWeather(); render(); }
+      if (k === 'ArrowUp')    { enterIdent(); }         // v2改定: ↑=同定モード(全パネル共通)
+      if (k === 'ArrowDown')  { S.theme = (S.theme === 'w') ? 'y' : 'w'; applyTheme(); }
+      if (k === 'Enter' && S.panel === 3) manualWp();   // WP確認は次WPパネル表示中のみ
       if (k === 'Escape') goBack();                       // → 終了(popstateでdoneへ)
+      return;
+    }
+    if (S.mode === 'ident') {
+      if (k === 'ArrowUp' || k === 'ArrowDown') {
+        S.identLayer = (S.identLayer === 'ground') ? 'sky' : 'ground';
+        setNight(S.identLayer === 'sky' && S.sun && S.sun.sunset && nowMs() > S.sun.sunset.getTime());
+        render(); return;
+      }
+      if ((k === 'ArrowLeft' || k === 'ArrowRight') && S.identLayer === 'ground') {
+        S.identFilter = (S.identFilter + (k === 'ArrowRight' ? 1 : 2)) % 3; render(); return;
+      }
+      if (k === 'Escape') { setNight(false); goBack(); }
+      return;
+    }
+    if (S.mode === 'cere') {
+      if (k === 'Enter') { try { history.replaceState({ s: 'ident' }, ''); } catch (e2) {} S.mode = 'ident'; S.identLayer = 'ground'; render(); return; }
+      if (k === 'Escape') goBack();
       return;
     }
     if (S.mode === 'warn') {
@@ -1064,6 +1386,8 @@ if (typeof module !== 'undefined') module.exports = CORE;
       if (S.sun && S.sun.sunset) simClockOff += (S.sun.sunset.getTime() - nowMs()) - 95 * 60000;
       return true;
     }
+    if (k === 'j' || k === 'J') { sim.headOff = (sim.headOff || 0) - 15; return true; }
+    if (k === 'k' || k === 'K') { sim.headOff = (sim.headOff || 0) + 15; return true; }
     if (k === 'g' || k === 'G') {          // 進捗もろとも終盤へ(テレポートではなく早送り)
       sim.along = Math.max(0, S.route.total - 150);
       S.along = sim.along; S.maxAlong = Math.max(S.maxAlong, sim.along);
@@ -1149,10 +1473,11 @@ if (typeof module !== 'undefined') module.exports = CORE;
       if (cands.length >= 2) { S.startCands = cands; readyGeoPoll(); }
     }
     fetchWeather();
+    prefetchTiles();                                     // 回廊タイル先読み(SWがTILESへ保存)
     pushScreen('ready'); S.mode = 'ready'; startTicker(); render();
   }
   function applyTheme() {
-    document.body.className = S.theme === 'w' ? 't-w' : '';
+    document.body.className = (S.theme === 'w' ? 't-w' : '') + (S.night ? ' t-night' : '');
   }
 
   /* ================= 描画 ================= */
@@ -1212,6 +1537,7 @@ if (typeof module !== 'undefined') module.exports = CORE;
       return { c: 'acc2', s: '逸脱警告を抑制中 残' + Math.floor(r / 60) + ':' + ('0' + (r % 60)).slice(-2) };
     }
     if (S.wpFlashUntil > t) return { c: 'main-c', s: S.wpFlashMsg };
+    if (S.ghostBehind != null && S.mode === 'main') return { c: 'dim', s: 'ゴースト後方 ' + S.ghostBehind + 'm' };
     if (S.lastFix && S.lastFix.acc != null) return { c: 'dim', s: '±' + Math.round(S.lastFix.acc) + 'm' + (SIM ? simBadge() : '') };
     return { c: 'dim', s: SIM ? simBadge() : '' };
   }
@@ -1226,6 +1552,149 @@ if (typeof module !== 'undefined') module.exports = CORE;
     var cls = remMin <= 30 ? 'acc1' : (remMin <= 90 ? 'acc2' : '');
     var rem = remMin > 0 ? '(残' + CORE.fmtDur(remMin) + ')' : '(日没後)';
     return '<span class="' + cls + '">日没 ' + CORE.fmtClock(S.sun.sunset) + ' ' + rem + '</span>';
+  }
+
+  /* ---- 同定モード(透視エンジン) ---- */
+  function enterIdent() {
+    if (!S.tracking) return;
+    S.identLayer = 'ground';
+    // 日没後に入ったら空レイヤ既定+夜パレット
+    if (S.sun && S.sun.sunset && nowMs() > S.sun.sunset.getTime()) { S.identLayer = 'sky'; setNight(true); }
+    pushScreen('ident'); S.mode = 'ident'; render();
+  }
+  function setNight(on) {
+    S.night = on;
+    document.body.className = (S.theme === 'w' ? 't-w' : '') + (on ? ' t-night' : '');
+  }
+  function identItems() {   // 現在地から見た方位レジストリ(山・POI・家・太陽・月)
+    if (!S.lastFix) return null;
+    var me = [S.lastFix.la, S.lastFix.lo];
+    var items = [], reg = S.route.reg || [], i;
+    var peaksDone = lsGet('thud.peaks') || {};
+    for (i = 0; i < reg.length; i++) {
+      var e = reg[i];
+      if (S.identFilter === 1 && e.t !== 'peak' && e.t !== 'tower') continue;
+      if (S.identFilter === 2 && (e.t === 'peak' || e.t === 'tower')) continue;
+      var d = CORE.hav(me, [e.la, e.lo]);
+      items.push({ n: e.n, t: e.t, vis: !!e.v, dist: d, el: e.el,
+                   brg: CORE.bearing(me, [e.la, e.lo]),
+                   trophy: e.t === 'peak' && !!peaksDone[e.n] });
+    }
+    if (S.home && S.identFilter !== 1) {
+      items.push({ n: '家', t: 'home', vis: false, dist: CORE.hav(me, [S.home.la, S.home.lo]),
+                   brg: CORE.bearing(me, [S.home.la, S.home.lo]), el: null, trophy: false });
+    }
+    var sa = ASTRO.sunAltAz(me[0], me[1], nowMs());
+    if (sa.alt > -6) items.push({ n: '太陽', t: 'sun', vis: true, dist: null, brg: sa.az, alt: sa.alt });
+    var mq = ASTRO.moonEq(nowMs());
+    var ma = ASTRO.altAz(mq.ra, mq.dec, me[0], me[1], nowMs());
+    if (ma.alt > 0) items.push({ n: '月', t: 'moon', vis: true, dist: null, brg: ma.az, alt: ma.alt });
+    if (S.sun && S.sun.sunset && nowMs() < S.sun.sunset.getTime()) {   // ご来光/日没の方位マーカー
+      var ss = ASTRO.sunAltAz(me[0], me[1], S.sun.sunset.getTime());
+      items.push({ n: '日没 ' + CORE.fmtClock(S.sun.sunset), t: 'sunset', vis: false, dist: null, brg: ss.az });
+    }
+    return items;
+  }
+  function stripX(diff, half) { return 300 + diff * (270 / half); }
+  function scrIdentGround() {
+    var ht = headingTrue();
+    if (!S.lastFix) return identShell('<div class="abs ctr" style="top:250px"><span class="eta1 dim">GPS待ち…</span></div>');
+    if (ht == null || !S.headingSettled) {
+      return identShell('<div class="abs ctr" style="top:250px"><span class="eta1 dim">方位較正中…</span>' +
+        '<div class="sub dim" style="margin-top:14px">頭をゆっくり左右に振ってください</div></div>');
+    }
+    var items = identItems() || [];
+    var HALF = 30, shown = [];
+    for (var i = 0; i < items.length; i++) {
+      var d = CORE.angDiff(items[i].brg, ht);
+      if (Math.abs(d) <= HALF) { items[i].diff = d; shown.push(items[i]); }
+    }
+    shown.sort(function (x, y) { return Math.abs(x.diff) - Math.abs(y.diff); });
+    var svg = '<svg viewBox="0 0 600 340" width="600" height="340">';
+    svg += '<line x1="30" y1="250" x2="570" y2="250" stroke="#6b675c" stroke-width="2"/>';
+    for (var t = -30; t <= 30; t += 10) {   // 方位目盛
+      var x = stripX(t, HALF);
+      var lbl = Math.round(((ht + t) % 360 + 360) % 360);
+      svg += '<line x1="' + x + '" y1="244" x2="' + x + '" y2="256" stroke="#6b675c" stroke-width="2"/>';
+      svg += '<text x="' + x + '" y="278" fill="#6b675c" font-size="15" text-anchor="middle" font-family="inherit">' + lbl + '°</text>';
+    }
+    var labels = '';
+    for (i = 0; i < Math.min(shown.length, 6); i++) {
+      var it = shown[i], x2 = stripX(it.diff, HALF);
+      var focus = i === 0;
+      var col = it.trophy ? '#ffd83b' : (focus ? '#f5f1e6' : '#6b675c');
+      var dash = it.vis ? '' : ' stroke-dasharray="4 5"';
+      svg += '<line x1="' + x2 + '" y1="250" x2="' + x2 + '" y2="' + (150 - i * 12) + '" stroke="' + col + '" stroke-width="' + (focus ? 3 : 2) + '"' + dash + '/>';
+      if (i < 3) {
+        var tag = (it.trophy ? '★' : '') + it.n;
+        svg += '<text x="' + x2 + '" y="' + (140 - i * 12) + '" fill="' + col + '" font-size="' + (focus ? 24 : 17) + '" text-anchor="middle" font-family="inherit"' + (focus && it.trophy ? ' font-weight="bold"' : '') + '>' + tag + '</text>';
+      }
+    }
+    svg += labels + '</svg>';
+    var c = shown[0], detail = '';
+    if (c) {
+      detail = '<div class="abs ctr" style="top:352px"><span class="eta1 main-c">' + (c.trophy ? '★' : '') + esc(c.n) + '</span>' +
+        '<div class="ct1 dim">' + (c.el != null ? c.el + 'm ・ ' : '') + (c.dist != null ? CORE.fmtKm(c.dist) : (c.alt != null ? '高度' + Math.round(c.alt) + '°' : '')) +
+        (c.vis ? ' <span class="sub">[可視]</span>' : ' <span class="sub dim">[この方向・透視]</span>') + '</div></div>';
+    } else {
+      detail = '<div class="abs ctr" style="top:352px"><span class="ct1 dim">この方向に登録対象なし</span></div>';
+    }
+    var f = ['全部', '山', '施設'][S.identFilter];
+    return identShell('<div class="abs" style="top:36px">' + svg + '</div>' + detail +
+      '<div class="abs ctr" style="bottom:56px"><span class="sub dim">←→ ' + f + ' ／ ↑↓ 空レイヤ ／ 戻る</span></div>');
+  }
+  function scrIdentSky() {
+    var ht = headingTrue();
+    if (ht == null || !S.headingSettled || !S.lastFix) {
+      return identShell('<div class="abs ctr" style="top:250px"><span class="eta1 dim">方位較正中…</span></div>');
+    }
+    var me = [S.lastFix.la, S.lastFix.lo], t = nowMs(), HALF = 30;
+    var svg = '<svg viewBox="0 0 600 430" width="600" height="430">';
+    svg += '<line x1="30" y1="400" x2="570" y2="400" stroke="#6b675c" stroke-width="2"/>';
+    function sy(alt) { return 400 - Math.max(0, Math.min(70, alt)) * (340 / 70); }
+    var pos = {}, i, vis = 0;
+    for (i = 0; i < STARS.s.length; i++) {
+      var s = STARS.s[i];
+      var aa = ASTRO.altAz(s[1], s[2], me[0], me[1], t);
+      var dd = CORE.angDiff(aa.az, ht);
+      if (aa.alt < -1 || Math.abs(dd) > HALF) continue;
+      pos[i] = [stripX(dd, HALF), sy(aa.alt)];
+      vis++;
+    }
+    var ck; // 星座線(両端が視界内のもの)
+    for (ck in STARS.c) {
+      var lines = STARS.c[ck].l;
+      for (i = 0; i < lines.length; i++) {
+        var pA = pos[lines[i][0]], pB = pos[lines[i][1]];
+        if (pA && pB) svg += '<line x1="' + pA[0].toFixed(0) + '" y1="' + pA[1].toFixed(0) + '" x2="' + pB[0].toFixed(0) + '" y2="' + pB[1].toFixed(0) + '" stroke="#6b675c" stroke-width="1.5"/>';
+      }
+    }
+    var named = [];
+    for (i = 0; i < STARS.s.length; i++) {
+      if (!pos[i]) continue;
+      var st = STARS.s[i], r = st[3] < 0.5 ? 5 : (st[3] < 1.6 ? 3.5 : 2.2);
+      svg += '<circle cx="' + pos[i][0].toFixed(0) + '" cy="' + pos[i][1].toFixed(0) + '" r="' + r + '" fill="currentColor"/>';
+      if (st[3] < 1.3) named.push([pos[i], st[0]]);
+    }
+    var pls = ASTRO.planets(t).concat([(function () { var m = ASTRO.moonEq(t); return { n: '月', ra: m.ra, dec: m.dec, t: 'moon' }; })()]);
+    for (i = 0; i < pls.length; i++) {
+      var pa = ASTRO.altAz(pls[i].ra, pls[i].dec, me[0], me[1], t);
+      var pd = CORE.angDiff(pa.az, ht);
+      if (pa.alt < 0 || Math.abs(pd) > HALF) continue;
+      var xx = stripX(pd, HALF), yy = sy(pa.alt);
+      svg += '<circle cx="' + xx.toFixed(0) + '" cy="' + yy.toFixed(0) + '" r="5" fill="none" stroke="currentColor" stroke-width="2"/>';
+      named.push([[xx, yy], pls[i].n]);
+    }
+    for (i = 0; i < Math.min(named.length, 5); i++) {
+      svg += '<text x="' + named[i][0][0].toFixed(0) + '" y="' + (named[i][0][1] - 10).toFixed(0) + '" fill="currentColor" font-size="17" text-anchor="middle" font-family="inherit">' + named[i][1] + '</text>';
+    }
+    svg += '</svg>';
+    return identShell('<div class="abs" style="top:10px;color:' + (S.night ? '#b04040' : '#f5f1e6') + '">' + svg + '</div>' +
+      '<div class="abs ctr" style="bottom:56px"><span class="sub dim">' + vis + '星 ／ ↑↓ 地上へ ／ 夜間はシステム輝度を最低に</span></div>');
+  }
+  function identShell(inner) {
+    var band = bandText();
+    return inner + '<div class="abs z-band ' + band.c + '">' + esc(band.s) + '</div>';
   }
 
   /* ---- 各画面 ---- */
@@ -1291,7 +1760,7 @@ if (typeof module !== 'undefined') module.exports = CORE;
       startLine = '<div>起点まで ' + CORE.fmtKm(CORE.hav([g.la, g.lo], sp)) +
         ' 方位' + Math.round(CORE.bearing([g.la, g.lo], sp)) + '°　w:' + DIAG.fixW + ' p:' + DIAG.fixP + '</div>';
     }
-    return '<div class="abs" style="top:352px;padding:0 40px"><div class="frame" style="font-size:17px;line-height:1.45">' +
+    return '<div class="abs" style="top:308px;padding:0 36px"><div class="frame" style="font-size:16px;line-height:1.42">' +
       '<div>権限 ori: ' + esc(DIAG.oriFn) + ' → ' + esc(DIAG.oriPerm) +
       (DIAG.oriPerm === '-' && DIAG.reqMs ? '(' + Math.round((Date.now() - DIAG.reqMs) / 1000) + '秒応答なし)' : '') +
       (DIAG.retryN ? ' 再要求' + DIAG.retryN : '') +
@@ -1302,6 +1771,8 @@ if (typeof module !== 'undefined') module.exports = CORE;
       '<div>変換: <span class="main-c">' + (S.hmode === 'inv' ? '360−α' : 'α直') + '</span>' +
       ' (←→切替) 東向きでα≈90ならα直が正</div>' +
       '<div>GPS: <span class="main-c">' + gpsLine + '</span></div>' + startLine +
+      '<div>β:' + v(DIAG.beta) + ' γ:' + v(DIAG.gamma) + '  真方位:' + v(headingTrue()) + '°(偏角' + ((S.route && S.route.dec) || 7.5) + '西)</div>' +
+      '<div class="dim">reg:' + ((S.route && S.route.reg) ? S.route.reg.length : 0) + '件 星:' + (typeof STARS !== 'undefined' ? STARS.s.length : 0) + ' Lap:' + S.lap + '</div>' +
       '</div></div>';
   }
   function startSelHtml() {
@@ -1323,12 +1794,14 @@ if (typeof module !== 'undefined') module.exports = CORE;
     return '<div class="abs z-head"><span class="dim">◂ </span>' + h + '<span class="dim"> ▸</span></div>';
   }
   function scrMain() {
-    var head = panelHeader(['進捗', '次WP', 'ルート図', '天気']);
+    var head = panelHeader(['進捗', '断面', '地形図', '次WP', '天気']);
     var band = bandText();
     var bandHtml = '<div class="abs z-band ' + band.c + '">' + esc(band.s) + '</div>';
-    if (S.panel === 0) return head + panelProgress() + bandHtml;
-    if (S.panel === 1) return head + panelWp() + bandHtml;
-    if (S.panel === 2) return head + panelMap() + bandHtml;
+    var ov = ghostOverlayHtml();
+    if (S.panel === 0) return head + panelProgress() + ov + bandHtml;
+    if (S.panel === 1) return head + panelProfile() + ov + bandHtml;
+    if (S.panel === 2) return head + panelMap() + ov + bandHtml;
+    if (S.panel === 3) return head + panelWp() + bandHtml;
     return head + panelWx() + bandHtml;
   }
   function staleInfo() {
@@ -1362,16 +1835,24 @@ if (typeof module !== 'undefined') module.exports = CORE;
     var etaTxt = eta.min != null ? CORE.fmtClock(new Date(nowMs() + eta.min * 60000)) : '--:--';
     var ct = CORE.ctAt(S.route, S.along);
     var ctTxt = (ct != null && ct > 5) ? 'CT ' + CORE.fmtDiff(S.movingMin - ct) : 'CT --';
+    if (urban) {
+      var lastLap = S.lapTimes.length ? CORE.fmtDur(S.lapTimes[S.lapTimes.length - 1] / 60) : '--';
+      ctTxt = 'Lap' + S.lap + ' ・ 前Lap ' + lastLap;
+    }
     var pace = S.emaKmh ? S.emaKmh.toFixed(1) + 'km/h' : '--km/h';
+    var urban = S.route.domain === 'urban';
+    var big2 = urban
+      ? (S.emaKmh ? S.emaKmh.toFixed(1) + 'km/h' : '--km/h') + (S.lap > 1 ? ' ・ Lap' + S.lap : '')
+      : '↑' + Math.round(rem.gain) + 'm';
     return '<div class="abs z-arrow ctr"><div class="arrow-wrap main-c" id="arw-wrap">' + arrowSvg('arw') + '</div>' +
       '<div class="arrow-lbl dim" id="arw-na" style="display:none">方位取得不可</div>' +
       '<div class="arrow-lbl dim">' + (S.dev && S.dev.state.deviated ? '<span class="acc1">復帰方向</span>' : 'ルート先') + '</div></div>' +
       '<div class="abs z-big ctr"><div class="big1 ' + (st.sec > 90 ? 'dim' : 'main-c') + '">残 ' + CORE.fmtKm(rem.dist) + '</div>' +
-      '<div class="big2 ' + (st.sec > 90 ? 'dim' : 'main-c') + '">↑' + Math.round(rem.gain) + 'm' +
+      '<div class="big2 ' + (st.sec > 90 ? 'dim' : 'main-c') + '">' + big2 +
       (st.txt ? ' <span class="sub acc2">' + st.txt + '</span>' : '') + '</div></div>' +
       '<div class="abs z-eta ctr"><div class="eta1">ETA ' + etaTxt + '</div>' +
       '<div class="eta2">' + sunsetHtml() + '</div></div>' +
-      '<div class="abs z-ct ctr"><span class="ct1 dim">' + ctTxt + ' ・ ' + pace + (S.moving ? '' : ' <span class="acc2">停止中</span>') + '</span></div>';
+      '<div class="abs z-ct ctr"><span class="ct1 dim">' + ctTxt + (urban ? '' : ' ・ ' + pace) + (S.moving ? '' : ' <span class="acc2">停止中</span>') + '</span></div>';
   }
   function offRouteNow() {
     return !!(S.dev && (S.dev.state.deviated || (S.proj && S.proj.dist > 150)));
@@ -1400,6 +1881,150 @@ if (typeof module !== 'undefined') module.exports = CORE;
       (el != null ? '<div class="eta2 dim" style="margin-top:14px">標高 約' + el + 'm</div>' : '') + esc2 + '</div>' +
       '<div class="abs ctr" style="top:470px"><span class="sub dim">ピンチ: 通過を手動確認</span></div>';
   }
+  function ghostAlongNow() {   // 背中/ゴーストの現在沿道位置
+    if (!S.tracking) return null;
+    var g = null;
+    if (S.ghostSrc === 'lap1' && S.ghost && S.ghost.samples) {          // 当日1周目の再生
+      var el = (nowMs() - S.lapStartMs) / 1000;
+      var ss = S.ghost.samples;
+      for (var i = 0; i < ss.length; i++) { if (ss[i][0] >= el) { g = ss[i][1]; break; } }
+      if (g == null) g = ss.length ? ss[ss.length - 1][1] : null;
+    } else if (S.ghostSrc === 'last' && S.ghost && S.ghost.samples) {    // 前回の自分の再生
+      var el2 = (nowMs() - S.startMs) / 1000;
+      var ss2 = S.ghost.samples;
+      for (var j = 0; j < ss2.length; j++) { if (ss2[j][0] >= el2) { g = ss2[j][1]; break; } }
+      if (g == null) g = ss2.length ? ss2[ss2.length - 1][1] : null;
+    } else {                                                            // 標準CT歩行者
+      g = CORE.ctInverse(S.route, (nowMs() - S.startMs) / 60000);
+    }
+    return g;
+  }
+  function panelProfile() {   // 断面図: 数字を物語に(v2 N4)
+    var r = S.route, W = 520, H = 260, pad = 10;
+    var st = staleInfo();
+    var eMin = 1e9, eMax = -1e9, i;
+    for (i = 0; i < r.pts.length; i++) { eMin = Math.min(eMin, r.pts[i][2]); eMax = Math.max(eMax, r.pts[i][2]); }
+    var eSpan = Math.max(eMax - eMin, 30);
+    function px(along, el) {
+      return [(pad + (W - 2 * pad) * along / r.total).toFixed(1),
+              (H - pad - (H - 2 * pad) * (el - eMin) / eSpan).toFixed(1)];
+    }
+    var dTodo = '', dDone = '', splitAlong = S.proj ? S.along : 0;
+    for (i = 0; i < r.pts.length; i++) {
+      var q = px(r.cum[i], r.pts[i][2]);
+      var seg = (r.cum[i] <= splitAlong) ? 'done' : 'todo';
+      if (seg === 'done') dDone += (dDone ? 'L' : 'M') + q[0] + ' ' + q[1];
+      else dTodo += (dTodo ? 'L' : 'M') + q[0] + ' ' + q[1];
+    }
+    var svg = '<svg viewBox="0 0 ' + W + ' ' + H + '" width="' + W + '" height="' + H + '">';
+    if (dTodo) svg += '<path d="' + dTodo + '" fill="none" stroke="#ffd83b" stroke-width="3"/>';
+    if (dDone) svg += '<path d="' + dDone + '" fill="none" stroke="#6b675c" stroke-width="3"/>';
+    for (i = 0; i < r.wps.length; i++) {
+      var w2 = r.wps[i];
+      var qe = px(w2.d, r.pts[CORE.routePointAt(r, w2.d).seg][2]);
+      svg += '<circle cx="' + qe[0] + '" cy="' + qe[1] + '" r="4" fill="#6b675c"/>';
+    }
+    var gA = ghostAlongNow();
+    if (gA != null) {
+      var gq = px(gA, r.pts[CORE.routePointAt(r, gA).seg][2]);
+      svg += '<circle cx="' + gq[0] + '" cy="' + gq[1] + '" r="6" fill="none" stroke="#6b675c" stroke-width="3"/>';
+    }
+    if (S.proj && st.sec < 600) {
+      var mq = px(S.along, r.pts[CORE.routePointAt(r, S.along).seg][2]);
+      svg += '<circle cx="' + mq[0] + '" cy="' + mq[1] + '" r="7" fill="#ffd83b"/>';
+    }
+    svg += '</svg>';
+    var ct = CORE.ctAt(r, S.along);
+    var diff = (ct != null && ct > 5) ? CORE.fmtDiff(((nowMs() - S.startMs) / 60000) - ct) : '--';
+    var gLbl = { ct: '標準CT', lap1: '1周目の自分', last: '前回の自分' }[S.ghostSrc] || '標準CT';
+    return '<div class="abs ctr" style="top:60px">' + svg + '</div>' +
+      '<div class="abs ctr" style="top:340px"><span class="eta1">' +
+      Math.round(S.proj ? r.pts[CORE.routePointAt(r, S.along).seg][2] : r.pts[0][2]) + 'm</span>' +
+      '<span class="dim ct1"> ／ 最高 ' + Math.round(eMax) + 'm</span></div>' +
+      '<div class="abs ctr" style="top:392px"><span class="ct1 dim">ゴースト(' + gLbl + ') ' + diff + '</span></div>';
+  }
+
+  /* ---- 地形レイヤ(N2: 地理院陰影起伏を反転して尾根谷だけ光らせる) ---- */
+  var terrCache = {};   // key → {url, fail}
+  function lon2tx(lo, z) { return (lo + 180) / 360 * Math.pow(2, z); }
+  function lat2ty(la, z) {
+    var r = la * Math.PI / 180;
+    return (1 - Math.log(Math.tan(r) + 1 / Math.cos(r)) / Math.PI) / 2 * Math.pow(2, z);
+  }
+  function tx2lon(x, z) { return x / Math.pow(2, z) * 360 - 180; }
+  function ty2lat(y, z) {
+    var n = Math.PI - 2 * Math.PI * y / Math.pow(2, z);
+    return 180 / Math.PI * Math.atan(0.5 * (Math.exp(n) - Math.exp(-n)));
+  }
+  function routeTiles(route, z, buf) {   // 回廊タイル一覧(先読み用)
+    var seen = {}, out = [];
+    for (var i = 0; i < route.pts.length; i++) {
+      var tx = Math.floor(lon2tx(route.pts[i][1], z)), ty = Math.floor(lat2ty(route.pts[i][0], z));
+      for (var dx = -buf; dx <= buf; dx++) for (var dy = -buf; dy <= buf; dy++) {
+        var k = (tx + dx) + '/' + (ty + dy);
+        if (!seen[k]) { seen[k] = 1; out.push([tx + dx, ty + dy]); }
+      }
+    }
+    return out;
+  }
+  function tileUrl(z, x, y) { return 'https://cyberjapandata.gsi.go.jp/xyz/hillshademap/' + z + '/' + x + '/' + y + '.png'; }
+  function prefetchTiles() {
+    if (SIM || typeof fetch !== 'function') return;
+    try {
+      var ts = routeTiles(S.route, 13, 0).slice(0, 40);
+      for (var i = 0; i < ts.length; i++) fetch(tileUrl(13, ts[i][0], ts[i][1]))['catch'](function () {});
+    } catch (e) {}
+  }
+  function buildTerrain(key, geo, W, H) {   // geo: {px(lo,la)→[x,y], minLa..} 相当のマッパ
+    var st = terrCache[key];
+    if (st) return;
+    terrCache[key] = { url: null, fail: false };
+    try {
+      var z = 13;
+      var x0 = Math.floor(lon2tx(geo.minLo, z)), x1 = Math.floor(lon2tx(geo.maxLo, z));
+      var y0 = Math.floor(lat2ty(geo.maxLa, z)), y1 = Math.floor(lat2ty(geo.minLa, z));
+      if ((x1 - x0 + 1) * (y1 - y0 + 1) > 12) { terrCache[key].fail = true; return; }
+      var cv = document.createElement('canvas'); cv.width = W; cv.height = H;
+      var ctx = cv.getContext('2d');
+      if (!ctx) { terrCache[key].fail = true; return; }
+      var pending = 0, failed = false;
+      var finish = function () {
+        if (failed) { terrCache[key].fail = true; return; }
+        try {
+          var img = ctx.getImageData(0, 0, W, H), d = img.data;
+          for (var i = 0; i < d.length; i += 4) {
+            var v = 255 - d[i];                             // 反転: 陰影(暗)→光
+            d[i] = d[i + 1] = d[i + 2] = Math.round(v * 0.7);
+            d[i + 3] = Math.min(255, v * 1.5);              // 白紙→透明(黒背景死守)
+          }
+          ctx.putImageData(img, 0, 0);
+          terrCache[key].url = cv.toDataURL();
+          render();
+        } catch (e2) { terrCache[key].fail = true; render(); }
+      };
+      for (var tx = x0; tx <= x1; tx++) {
+        for (var ty = y0; ty <= y1; ty++) {
+          (function (tx, ty) {
+            pending++;
+            var im = new Image();
+            im.crossOrigin = 'anonymous';
+            im.onload = function () {
+              try {
+                var pNW = geo.px(tx2lon(tx, z), ty2lat(ty, z));
+                var pSE = geo.px(tx2lon(tx + 1, z), ty2lat(ty + 1, z));
+                ctx.drawImage(im, +pNW[0], +pNW[1], pSE[0] - pNW[0], pSE[1] - pNW[1]);
+              } catch (e3) { failed = true; }
+              if (--pending === 0) finish();
+            };
+            im.onerror = function () { if (--pending === 0) finish(); }; // 欠けは許容(未取得域は線図)
+            im.src = tileUrl(z, tx, ty);
+          })(tx, ty);
+        }
+      }
+      if (pending === 0) terrCache[key].fail = true;
+    } catch (e) { terrCache[key].fail = true; }
+  }
+
   // ルート形状図: 地図タイルは出さない(非ゴール)が、線と点の俯瞰なら軽量で読める。
   // 現在地の色はGPS精度で変える(カシミール3D方式: 良→悪 黄/橙/赤、途絶は灰)
   function panelMap() {
@@ -1438,6 +2063,11 @@ if (typeof module !== 'undefined') module.exports = CORE;
       var passed = !!S.wpPassed[w2.d];
       svg += '<circle cx="' + q[0] + '" cy="' + q[1] + '" r="6" fill="' + (passed ? '#6b675c' : '#f5f1e6') + '"/>';
     }
+    var gA2 = ghostAlongNow();
+    if (gA2 != null) {
+      var gp = CORE.routePointAt(r, gA2), gq2 = px(gp.lo, gp.la);
+      svg += '<circle cx="' + gq2[0] + '" cy="' + gq2[1] + '" r="7" fill="none" stroke="#6b675c" stroke-width="3"/>';
+    }
     if (fx != null) {
       var acc = S.lastFix.acc || 99, age = (Date.now() - S.lastFixReal) / 1000;
       var col = age > 30 ? '#6b675c' : (acc <= 25 ? '#ffd83b' : (acc <= 60 ? '#f5a11c' : '#ff5a60'));
@@ -1463,7 +2093,19 @@ if (typeof module !== 'undefined') module.exports = CORE;
     var rawCap = S.lastFix
       ? S.lastFix.la.toFixed(5) + ', ' + S.lastFix.lo.toFixed(5) + ' (' + Math.round((Date.now() - S.lastFixReal) / 1000) + '秒前)'
       : '測位待ち';
-    return '<div class="abs ctr" style="top:44px">' + svg + '</div>' +
+    // 地形レイヤ(N2): キャッシュ済みなら下敷きに。失敗・未取得は線図のまま(仕様の縮退)
+    var tKey = r.id + ':' + (r.rotatedFrom || 0) + ':' + Math.round(minx) + ':' + Math.round(miny) + ':' + sc.toFixed(4);
+    var geoM = { minLo: (minx) / klon, maxLo: maxx / klon, minLa: miny / klat, maxLa: maxy / klat,
+                 px: function (lo, la) { return px(lo, la); } };
+    if (!terrCache[tKey]) buildTerrain(tKey, geoM, W, H);
+    var terr = terrCache[tKey];
+    var under = (terr && terr.url)
+      ? '<img src="' + terr.url + '" width="' + W + '" height="' + H + '" style="position:absolute;left:0;top:0">'
+      : '';
+    var credit = (terr && terr.url) ? '地図: 地理院タイル' : '線図(地形未取得)';
+    return '<div class="abs ctr" style="top:44px"><div style="position:relative;width:' + W + 'px;height:' + H + 'px;display:inline-block">' + under +
+      '<div style="position:absolute;left:0;top:0">' + svg + '</div>' +
+      '<div style="position:absolute;right:4px;bottom:2px;font-size:14px;color:#6b675c">' + credit + '</div></div></div>' +
       '<div class="abs ctr" style="top:396px"><span class="ct1 dim">' + cap + '</span></div>' +
       '<div class="abs ctr" style="top:428px"><span class="sub dim">' + rawCap + '</span></div>';
   }
@@ -1508,6 +2150,9 @@ if (typeof module !== 'undefined') module.exports = CORE;
       '<div class="stat-row">行動　　 ' + CORE.fmtDur(f.moving || 0) + '</div>' +
       '<div class="stat-row">休憩　　 ' + CORE.fmtDur(f.stop || 0) + '</div>' +
       '<div class="stat-row">標準CT比 ' + (f.ctRatio ? f.ctRatio.toFixed(2) : '--') + '</div>' +
+      (f.laps && f.laps.length ? '<div class="stat-row">Lap ' + f.laps.length + '回</div>' : '') +
+      (f.summits && f.summits.length ? '<div class="stat-row acc2">登頂 ' + esc(f.summits.join('・')) + ' (通算' + f.peakTotal + '座)</div>' : '') +
+      (f.ghostDiff != null ? '<div class="stat-row">ゴースト比 ' + CORE.fmtDiff(f.ghostDiff) + '</div>' : '') +
       '</div></div>' +
       '<div class="abs ctr" style="bottom:30px"><span class="hint main-c">ピンチ/戻る で終了</span></div>';
   }
@@ -1520,6 +2165,8 @@ if (typeof module !== 'undefined') module.exports = CORE;
     else if (S.mode === 'select') html = scrSelect();
     else if (S.mode === 'ready')  html = scrReady();
     else if (S.mode === 'main')   html = scrMain();
+    else if (S.mode === 'ident')  html = (S.identLayer === 'sky') ? scrIdentSky() : scrIdentGround();
+    else if (S.mode === 'cere')   html = scrCeremony();
     else if (S.mode === 'warn')   html = scrWarn();
     else if (S.mode === 'done')   html = scrDone();
     app.innerHTML = html;
