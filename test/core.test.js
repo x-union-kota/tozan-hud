@@ -207,5 +207,51 @@ console.log('[format]');
   ok(CORE.fmtDiff(-5) === '−5分', 'fmtDiff minus');
 }
 
+/* 9. DEM(地理院 標高タイル)デコードと等高線 */
+console.log('[dem]');
+{
+  // 仕様: x = R*65536+G*256+B / x<2^23 → x*0.01 / x=2^23 → 無効 / x>2^23 → (x-2^24)*0.01
+  ok(CORE.demElev(0, 0, 0) === 0, 'demElev zero');
+  near(CORE.demElev(0, 1, 0), 2.56, 1e-9, 'demElev 256 → 2.56m');
+  near(CORE.demElev(0, 0x2a, 0xf8), 110, 1e-9, 'demElev typical elevation (42*256+248 = 11000 → 110.00m)');
+  ok(CORE.demElev(128, 0, 0) === null, 'demElev invalid marker (128,0,0) → null');
+  ok(CORE.demElev(127, 255, 255) !== null, 'demElev just below 2^23 is valid');
+  near(CORE.demElev(255, 255, 255), -0.01, 1e-9, 'demElev x>2^23 → negative');
+  near(CORE.demElev(128, 0, 1), -83886.07, 1e-6, 'demElev just above 2^23 wraps negative');
+
+  ok(CORE.contourStep(4) === 1, 'contourStep flat → 1m');
+  ok(CORE.contourStep(300) === 10, 'contourStep 300m range → 10m');
+  ok(CORE.contourStep(1500) === 50, 'contourStep alpine range → 50m');
+  ok(CORE.contourStep(2000) / 1 >= 50, 'contourStep keeps line count bounded');
+  {
+    let worst = 0;
+    for (const r of [0.5, 3, 17, 80, 240, 900, 3776, 20000]) worst = Math.max(worst, r / CORE.contourStep(r));
+    ok(worst <= 40, 'contourStep never yields more than 40 lines');
+  }
+
+  // marching squares: 4x4 の東向き一様傾斜(値=x)。level=1.5 は縦一線で、全線分が x=1.5 上に乗る
+  {
+    const w = 4, h = 4, g = [];
+    for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) g[y * w + x] = x;
+    const s = CORE.marchingSquares(g, w, h, 1.5);
+    ok(s.length === (h - 1) * 4, 'ramp: one segment per cell row');
+    let onLine = true;
+    for (let i = 0; i < s.length; i += 4) if (Math.abs(s[i] - 1.5) > 1e-9 || Math.abs(s[i + 2] - 1.5) > 1e-9) onLine = false;
+    ok(onLine, 'ramp: contour sits exactly on the interpolated level');
+    ok(CORE.marchingSquares(g, w, h, 9).length === 0, 'level above max → no segments');
+    ok(CORE.marchingSquares(g, w, h, -1).length === 0, 'level below min → no segments');
+  }
+  // 無効(null)を含むセルは線を作らない — 欠損域に嘘の等高線を引かないこと(正直さゲート)
+  {
+    const w = 3, h = 3, g = [0, 5, 0, 5, null, 5, 0, 5, 0];
+    ok(CORE.marchingSquares(g, w, h, 2.5).length === 0, 'cells touching invalid DEM produce no contour');
+  }
+  // 鞍点(case 5/10)は中央値で結び方を決め、2本の線分を返す
+  {
+    const g = [0, 10, 10, 0];   // TL=0 TR=10 BL=10 BR=0 → case 5 相当
+    ok(CORE.marchingSquares(g, 2, 2, 5).length === 8, 'saddle yields two segments');
+  }
+}
+
 console.log(`\n${count - fail}/${count} passed`);
 process.exit(fail ? 1 : 0);

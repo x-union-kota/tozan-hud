@@ -364,8 +364,78 @@ var CORE = (function () {
     return (r >= 0 ? '+' : '−') + Math.abs(r) + '分';
   }
 
+  /* ---------- DEM(地理院 標高タイルPNG)と等高線 ---------- */
+  // (R,G,B) → 標高m。x = R*65536+G*256+B / x<2^23: x*0.01 / x=2^23: 無効 / x>2^23: (x-2^24)*0.01
+  // 無効値のピクセルは (128,0,0) すなわち x=2^23。nullを返す(0mと混同しないこと)
+  function demElev(r, g, b) {
+    var x = r * 65536 + g * 256 + b;
+    if (x === 8388608) return null;
+    return (x < 8388608 ? x : x - 16777216) * 0.01;
+  }
+  // 等高線間隔を選ぶ。レンジだけで決めると急斜面で線が数px間隔に潰れるので、
+  // 画面上の勾配(m/px)を渡したときは「隣り合う線が minPx 以上離れる」ことを主条件にする。
+  // gradPerPx 省略時はレンジのみ(線40本以内)。加算ディスプレイでは線の混み過ぎ=白い塊になる。
+  function contourStep(range, gradPerPx, minPx) {
+    var cand = [1, 2, 5, 10, 20, 50, 100, 200, 500, 1000];
+    for (var i = 0; i < cand.length; i++) {
+      if (range / cand[i] > 40) continue;
+      if (gradPerPx && cand[i] / gradPerPx < (minPx || 14)) continue;
+      return cand[i];
+    }
+    return cand[cand.length - 1];
+  }
+  // グリッドの勾配(m/画面px)の分位点。急斜面側を見たいので既定は70%点
+  function gradPercentile(grid, w, h, gridPx, p) {
+    var v = [];
+    for (var y = 1; y + 1 < h; y++) {
+      for (var x = 1; x + 1 < w; x++) {
+        var l = grid[y * w + x - 1], r = grid[y * w + x + 1];
+        var u = grid[(y - 1) * w + x], d = grid[(y + 1) * w + x];
+        if (l == null || r == null || u == null || d == null) continue;
+        var gx = (r - l) / (2 * gridPx), gy = (d - u) / (2 * gridPx);
+        v.push(Math.sqrt(gx * gx + gy * gy));
+      }
+    }
+    if (!v.length) return 0;
+    v.sort(function (a, b) { return a - b; });
+    return v[Math.min(v.length - 1, Math.floor(v.length * (p == null ? 0.7 : p)))];
+  }
+  // marching squares。grid は行優先の配列で無効は null。返り値は [x0,y0,x1,y1,...] のフラット線分列
+  function marchingSquares(grid, w, h, level) {
+    var out = [];
+    function mid(a, b) { return (level - a) / (b - a); }
+    for (var y = 0; y + 1 < h; y++) {
+      for (var x = 0; x + 1 < w; x++) {
+        var tl = grid[y * w + x], tr = grid[y * w + x + 1];
+        var bl = grid[(y + 1) * w + x], br = grid[(y + 1) * w + x + 1];
+        if (tl == null || tr == null || bl == null || br == null) continue;
+        var c = (tl >= level ? 8 : 0) | (tr >= level ? 4 : 0) | (br >= level ? 2 : 0) | (bl >= level ? 1 : 0);
+        if (c === 0 || c === 15) continue;
+        var T = [x + mid(tl, tr), y], Rt = [x + 1, y + mid(tr, br)],
+            B = [x + mid(bl, br), y + 1], L = [x, y + mid(tl, bl)];
+        var pairs;
+        if (c === 5 || c === 10) {                      // 鞍点: 中央値で結び方を決める
+          var up = ((tl + tr + bl + br) / 4) >= level;
+          if (c === 5) pairs = up ? [[T, L], [B, Rt]] : [[T, Rt], [L, B]];
+          else         pairs = up ? [[T, Rt], [L, B]] : [[T, L], [B, Rt]];
+        } else if (c === 1 || c === 14) pairs = [[L, B]];
+        else if (c === 2 || c === 13) pairs = [[B, Rt]];
+        else if (c === 3 || c === 12) pairs = [[L, Rt]];
+        else if (c === 4 || c === 11) pairs = [[T, Rt]];
+        else if (c === 6 || c === 9)  pairs = [[T, B]];
+        else                          pairs = [[T, L]];  // 7, 8
+        for (var p = 0; p < pairs.length; p++) {
+          out.push(pairs[p][0][0], pairs[p][0][1], pairs[p][1][0], pairs[p][1][1]);
+        }
+      }
+    }
+    return out;
+  }
+
   return {
     decodePoly: decodePoly, decodeEle: decodeEle,
+    demElev: demElev, contourStep: contourStep, gradPercentile: gradPercentile,
+    marchingSquares: marchingSquares,
     hav: hav, bearing: bearing, destPoint: destPoint,
     buildRoute: buildRoute,
     projectRange: projectRange, matchLocal: matchLocal,
