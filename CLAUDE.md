@@ -49,8 +49,9 @@ dist/index.html dist/sw.js   ビルド成果物
 
 ## 残タスク(優先度順・詳細は HANDOFF.md §1)
 
-1. 星表拡充(現在 輝星69+星座20。外部星表データを手元DLして `make_stars.py` に投入する口を作る)
-2. 検証チェーン⑥⑦の手順書化(sim既知ゴースト照合・Stellarium照合)
+0. **データソース改定(最優先)** — `docs/DATA_SOURCES.md` が仕様。地形は陰影起伏図→標高タイル(数値DEM)へ切替、
+   urbanはOSM道路ベクタ焼き込み+`--snap-osm`、星表はHYG Database+Stellarium星座線、偏角はWMM。街中の地図品質問題の根はここ
+1. 検証チェーン⑥⑦の手順書化(sim既知ゴースト照合・Stellarium照合)
 
 コンテナ/サンドボックスから Overpass API・DEMタイル等への外部アクセスは不可の前提で、
 「ユーザーが手元でダウンロード → ツールに投入」のオフライン2段構えを維持すること(gpx2route.py が前例)。
