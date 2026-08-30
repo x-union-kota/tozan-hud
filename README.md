@@ -12,10 +12,10 @@ npm install jsdom                 # jsdom統合テスト用
 python3 tools/build.py            # src/* → dist/index.html
 node test/core.test.js            # 純ロジック 82件
 node test/app.smoke.js            # jsdom統合 70件
-python3 test/gpx2route.test.py    # 変換ツール 28件
+python3 test/gpx2route.test.py    # 変換ツール 57件
 ```
 
-3スイート全通過(82 + 70 + 28 = 180件)を確認してから作業を始める。
+3スイート全通過(82 + 70 + 57 = 209件)を確認してから作業を始める。
 
 ## 公開(GitHub Pages)
 

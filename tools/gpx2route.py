@@ -35,10 +35,22 @@ v3: OSM POI(温泉/駅/小屋 等)・山座レジストリ・区間ボス・偏�
   domain: 'mountain' | 'urban'。--domain auto なら獲得標高/kmで自動判定
 
 ── 可視判定の方針(重要) ──
-  DEMレイキャスト無しで「見える」と断言しない。OSM由来の対象はすべて v:0(破線=透視)。
-  実線(v:1)にするのは --vis で名指しした手動確証のみ。アプリの正直さゲートと同じ思想。
+  「見える」と断言できるのは、DEMレイキャストで遮蔽が無いと確かめた対象か、--vis の手動確証だけ。
+  DEM未投入なら OSM由来の対象はすべて v:0(破線=透視)のまま。アプリの正直さゲートと同じ思想。
+  DEMが欠けている区間を含む視線は「不明」であって「見える」ではない — v は 0 のままにする。
+
+── DEM(標高タイル)の投入 ── オフライン2段構え。Overpassと同じ型。
+
+  # ① 必要なタイルのDLスクリプトを出力(既定 z12 = 約27m/px。遠景の遮蔽判定には十分)
+  python3 gpx2route.py input.gpx --emit-dem-fetch > fetch_dem.sh
+
+  # ② 手元で実行(curlが地理院タイルを dem/ 以下に保存する)
+  sh fetch_dem.sh
+
+  # ③ --dem-tiles で投入。山座レジストリの v: が自動で付き、標高欠損も埋まる
+  python3 gpx2route.py input.gpx --id takao --name "..." --osm poi.json --dem-tiles dem/
 """
-import argparse, json, math, re, sys, xml.etree.ElementTree as ET
+import argparse, json, math, os, re, sys, zlib, xml.etree.ElementTree as ET
 
 R = 6371000.0
 
@@ -292,6 +304,196 @@ def build_reg(pts, osm_items, poi_types, poi_radius, peak_km, vis_names, max_reg
     for r in reg: del r['_s']
     return reg, dropped
 
+# ---------- v3.2: 地理院 標高タイル(DEM) ----------
+DEM_HOST = 'https://cyberjapandata.gsi.go.jp/xyz'
+EYE_H = 1.5          # 目の高さ m
+K_REFR = 7.0 / 6.0   # 大気差込みの等価地球半径係数(標準屈折 k≈0.13)
+
+def lon2tx(lo, z): return (lo + 180.0) / 360.0 * (2 ** z)
+def lat2ty(la, z):
+    r = math.radians(la)
+    return (1 - math.log(math.tan(r) + 1 / math.cos(r)) / math.pi) / 2 * (2 ** z)
+
+def read_png_rgb(path):
+    """stdlibだけでPNGを読む(8bit truecolor / +alpha・非インターレースのみ)。→ (w, h, RGBバイト列)
+       Pillow等に依存しないのは、このツールを素のpython3だけで動かすため。"""
+    data = open(path, 'rb').read()
+    if data[:8] != b'\x89PNG\r\n\x1a\n': raise ValueError(f'PNGではない: {path}')
+    pos, idat, w, h, ctype = 8, [], None, None, None
+    while pos + 8 <= len(data):
+        ln = int.from_bytes(data[pos:pos + 4], 'big'); typ = data[pos + 4:pos + 8]
+        body = data[pos + 8:pos + 8 + ln]; pos += 12 + ln
+        if typ == b'IHDR':
+            w = int.from_bytes(body[0:4], 'big'); h = int.from_bytes(body[4:8], 'big')
+            depth, ctype, interlace = body[8], body[9], body[12]
+            if depth != 8 or ctype not in (2, 6) or interlace != 0:
+                raise ValueError(f'未対応のPNG (depth={depth} colortype={ctype} interlace={interlace}): {path}')
+        elif typ == b'IDAT': idat.append(body)
+        elif typ == b'IEND': break
+    if w is None or ctype is None: raise ValueError(f'IHDRがない: {path}')
+    ch = 3 if ctype == 2 else 4
+    buf, out, prev, p = zlib.decompress(b''.join(idat)), bytearray(w * h * 3), bytearray(w * ch), 0
+    for y in range(h):
+        f = buf[p]; p += 1
+        line = bytearray(buf[p:p + w * ch]); p += w * ch
+        if f == 1:
+            for i in range(ch, len(line)): line[i] = (line[i] + line[i - ch]) & 255
+        elif f == 2:
+            for i in range(len(line)): line[i] = (line[i] + prev[i]) & 255
+        elif f == 3:
+            for i in range(len(line)):
+                a = line[i - ch] if i >= ch else 0
+                line[i] = (line[i] + ((a + prev[i]) >> 1)) & 255
+        elif f == 4:
+            for i in range(len(line)):
+                a = line[i - ch] if i >= ch else 0
+                b = prev[i]; c = prev[i - ch] if i >= ch else 0
+                q = a + b - c
+                pa, pb, pc = abs(q - a), abs(q - b), abs(q - c)
+                line[i] = (line[i] + (a if (pa <= pb and pa <= pc) else (b if pb <= pc else c))) & 255
+        elif f != 0:
+            raise ValueError(f'未対応のPNGフィルタ {f}: {path}')
+        for x in range(w): out[(y * w + x) * 3:(y * w + x) * 3 + 3] = line[x * ch:x * ch + 3]
+        prev = line
+    return w, h, bytes(out)
+
+def dem_elev_rgb(r, g, b):
+    """地理院DEMのPNG画素→標高m。x=2^23 は無効(=(128,0,0))。0mと混同しないようNoneを返す。"""
+    x = r * 65536 + g * 256 + b
+    if x == 0x800000: return None
+    return (x if x < 0x800000 else x - 0x1000000) * 0.01
+
+class DemTiles:
+    """--dem-tiles dir/ 配下の {z}/{x}/{y}.png から標高を引く(最も深いzを使う)"""
+    def __init__(self, root):
+        if not os.path.isdir(root): sys.exit(f'--dem-tiles: ディレクトリがない: {root}')
+        zs = [int(d) for d in os.listdir(root) if d.isdigit() and os.path.isdir(os.path.join(root, d))]
+        if not zs: sys.exit(f'--dem-tiles: {root} に {{z}}/{{x}}/{{y}}.png がない(--emit-dem-fetch で取得)')
+        self.root, self.z, self.cache = root, max(zs), {}
+        self.hit = self.miss = 0
+        self.res_m = 156543.03 * math.cos(math.radians(35.0)) / (2 ** self.z)   # 概算 m/px
+
+    def _tile(self, tx, ty):
+        k = (tx, ty)
+        if k not in self.cache:
+            p = os.path.join(self.root, str(self.z), str(tx), f'{ty}.png')
+            if not os.path.exists(p): self.cache[k] = None
+            else:
+                try:
+                    w, h, rgb = read_png_rgb(p)
+                    self.cache[k] = (w, h, [dem_elev_rgb(rgb[i * 3], rgb[i * 3 + 1], rgb[i * 3 + 2])
+                                            for i in range(w * h)])
+                except Exception as e:      # 壊れたタイルは「無い」扱い(嘘の標高を返さない)
+                    sys.stderr.write(f'⚠ DEMタイルを読めない({e}) → 欠損扱い: {p}\n')
+                    self.cache[k] = None
+        return self.cache[k]
+
+    def elev_max(self, la, lo):
+        """周囲1セルの最大標高。低ズームDEMは尾根を平滑化して過小評価するので、
+           遮蔽判定の地形側はこちらを使う(見える側に偏らせない)。"""
+        dla = self.res_m / 110540.0
+        dlo = self.res_m / (111320.0 * max(math.cos(math.radians(la)), 0.1))
+        best = None
+        for i in (-1, 0, 1):
+            for j in (-1, 0, 1):
+                v = self.elev(la + i * dla, lo + j * dlo)
+                if v is not None and (best is None or v > best): best = v
+        return best
+
+    def elev(self, la, lo):
+        fx, fy = lon2tx(lo, self.z), lat2ty(la, self.z)
+        tx, ty = int(math.floor(fx)), int(math.floor(fy))
+        t = self._tile(tx, ty)
+        if t is None: self.miss += 1; return None
+        w, h, g = t
+        ix = min(w - 1, max(0, int((fx - tx) * w)))
+        iy = min(h - 1, max(0, int((fy - ty) * h)))
+        v = g[iy * w + ix]
+        if v is None: self.miss += 1
+        else: self.hit += 1
+        return v
+
+def emit_dem_fetch(pts, radius_km, z, src):
+    las = [p[0] for p in pts]; los = [p[1] for p in pts]
+    k = math.cos(math.radians(sum(las) / len(las)))
+    mla, mlo = radius_km * 1000 / 110540.0, radius_km * 1000 / (111320.0 * k)
+    x0 = int(math.floor(lon2tx(min(los) - mlo, z))); x1 = int(math.floor(lon2tx(max(los) + mlo, z)))
+    y0 = int(math.floor(lat2ty(max(las) + mla, z))); y1 = int(math.floor(lat2ty(min(las) - mla, z)))
+    n = (x1 - x0 + 1) * (y1 - y0 + 1)
+    res = 156543.03 * k / (2 ** z)
+    print('#!/bin/sh')
+    print(f'# 地理院 標高タイル {src} z{z} (約{res:.0f}m/px) を {n} 枚 dem/ に取得する')
+    print(f'# 範囲: ルートbbox + {radius_km}km (山座の遮蔽判定に視線経路の地形が要る)')
+    print('# 出典表示が必要: 「地図: 地理院タイル」')
+    print('set -e')
+    for x in range(x0, x1 + 1):
+        print(f'mkdir -p dem/{z}/{x}')
+        for y in range(y0, y1 + 1):
+            print(f'curl -sfS -o dem/{z}/{x}/{y}.png {DEM_HOST}/{src}/{z}/{x}/{y}.png '
+                  f'|| echo "  欠損: {z}/{x}/{y}" >&2')
+    print(f'echo "完了: 最大 {n} 枚。--dem-tiles dem/ で投入する" >&2')
+
+def _lerp_pt(a, b, f):
+    return (a[0] + (b[0] - a[0]) * f, a[1] + (b[1] - a[1]) * f)
+
+def sight_blocked(obs, obs_el, tgt, tgt_el, dem, clearance=None, max_samples=400):
+    """観測点→対象の視線が地形に遮られるか。
+       戻り値 True=遮蔽 / False=見通せる / None=DEM欠損で判定不能(=見えるとは言わない)
+
+       低ズームのDEMは尾根を平滑化して標高を過小評価する(z11実測: 高尾山599m→591m、
+       富士山3776m→3761m)。過小評価は「見える」側に偏る=正直さゲートとして危険なので、
+       地形側は周囲1セルの最大標高(elev_max)で見る。
+       視線の余裕を一律に取る方式は不可: 観測点の足元では視線が必ず地面すれすれを通るため、
+       近傍サンプルが常に遮蔽判定になり実際に見える対象まで落ちる(実測で確認済み)。
+       代わりに両端 skip_m 以内のサンプルを除外する(自分が立っている地面には遮られない)。"""
+    D = hav((obs[0], obs[1], 0), (tgt[0], tgt[1], 0))
+    if D < 50: return False
+    if clearance is None: clearance = 2.0
+    skip_m = max(60.0, dem.res_m * 2)
+    n = max(8, min(max_samples, int(D / max(dem.res_m, 1.0))))
+    h0 = obs_el + EYE_H
+    known = unknown = 0
+    for i in range(1, n):
+        f = i / n
+        s = D * f
+        if s < skip_m or (D - s) < skip_m: continue
+        p = _lerp_pt(obs, tgt, f)
+        h = dem.elev_max(p[0], p[1])
+        if h is None: unknown += 1; continue
+        known += 1
+        drop = s * (D - s) / (2 * R * K_REFR)          # 地球の丸み+大気差
+        los = h0 + (tgt_el - h0) * f - drop
+        if h > los + clearance: return True
+    if known == 0 or unknown > known * 0.25: return None
+    return False
+
+def apply_dem_visibility(pts, cum, reg, dem, max_obs=40):
+    """ルート上の観測点から見える峰に v:1 を立てる。1点でも見通せれば可視。
+       POIは建物遮蔽をDEMが持たないので自動判定しない(--vis の手動確証のみ)。"""
+    idx = []
+    if cum[-1] <= 0: idx = [0]
+    else:
+        for i in range(max_obs):
+            want = cum[-1] * i / max(max_obs - 1, 1)
+            j = min(range(len(cum)), key=lambda k: abs(cum[k] - want))
+            if j not in idx: idx.append(j)
+    obs = []
+    for j in idx:
+        el = dem.elev(pts[j][0], pts[j][1])
+        obs.append(((pts[j][0], pts[j][1]), el if el is not None else pts[j][2]))
+    seen = unknown = 0
+    for r in reg:
+        if r['t'] != 'peak' or r['v'] == 1: continue      # --vis の手動確証は上書きしない
+        visible, any_known = False, False
+        for (o, oel) in obs:
+            b = sight_blocked(o, oel, (r['la'], r['lo']), r['el'], dem)
+            if b is None: continue                        # DEM欠損 = 不明。見えるとは言わない
+            any_known = True
+            if b is False: visible = True; break
+        if visible: r['v'] = 1; seen += 1
+        elif not any_known: unknown += 1                  # 全観測点で判定不能 → v:0 のまま
+    return seen, unknown
+
 # ---------- v3: 区間ボス手動指定 ----------
 def parse_segs(specs, total):
     """"a-b:名前" のリスト。a,b は 0〜1 なら割合、それ以外は沿道距離m。"""
@@ -349,7 +551,13 @@ def main():
     ap.add_argument('--poi-types', default=DEFAULT_POI_TYPES, help=f'採用POI種別 (既定: {DEFAULT_POI_TYPES})')
     ap.add_argument('--poi-radius', type=float, default=1500, help='POI採用: ルートからの距離 m (既定1500)')
     ap.add_argument('--peak-km', type=float, default=30, help='山頂採用: ルート重心からの距離 km (既定30。超は--vis指定のみ)')
-    ap.add_argument('--vis', default='', help='実線(可視確証)にする対象名のカンマ列。指定なし=全て破線(透視)')
+    ap.add_argument('--vis', default='', help='実線(可視確証)にする対象名のカンマ列。DEM判定の上書き手段')
+    # v3.2 DEM
+    ap.add_argument('--emit-dem-fetch', action='store_true', help='標高タイルのDLスクリプトを出力して終了(手元で実行→--dem-tilesで投入)')
+    ap.add_argument('--dem-tiles', default=None, help='標高タイル置き場 {z}/{x}/{y}.png のルート。峰の可視判定と標高補完に使う')
+    ap.add_argument('--dem-zoom', type=int, default=12, help='DEMのズーム (既定12 ≈ 27m/px。遠景の遮蔽判定はこれで十分)')
+    ap.add_argument('--dem-src', default='dem_png', choices=['dem_png', 'dem5a_png'], help='タイル種別 (既定 dem_png。dem5a_pngはz15専用で欠損域あり)')
+    ap.add_argument('--dem-radius-km', type=float, default=None, help='DL範囲: ルートbboxからの余裕km (既定は --peak-km と同じ)')
     ap.add_argument('--seg', action='append', default=[], help='区間ボス "a-b:名前" (a,b: 0〜1=割合 / それ以外=m。複数可)')
     ap.add_argument('--dec', type=float, default=7.5, help='磁気偏角(西偏+)。地理院の管区値を指定 (既定7.5)')
     ap.add_argument('--domain', default='auto', choices=['auto', 'mountain', 'urban'])
@@ -363,6 +571,10 @@ def main():
 
     if a.emit_query:
         emit_query(pts, a.poi_radius, a.peak_km)
+        return
+    if a.emit_dem_fetch:
+        emit_dem_fetch(pts, a.dem_radius_km if a.dem_radius_km is not None else a.peak_km,
+                       a.dem_zoom, a.dem_src)
         return
     if not a.id or not a.name: sys.exit('--id と --name は必須です(--emit-query 時を除く)')
 
@@ -378,6 +590,35 @@ def main():
     osm_items = load_osm(a.osm) if a.osm else []
     reg, dropped = build_reg(pts, osm_items, poi_types, a.poi_radius, a.peak_km, vis_names, a.max_reg)
     missing_vis = [v for v in vis_names if not any(r['n'] == v for r in reg)]
+
+    dem_note = ''
+    if a.dem_tiles:
+        dem = DemTiles(a.dem_tiles)
+        filled = 0
+        for r in reg:                                     # 標高欠損をDEMで埋める
+            if not r['el']:
+                e = dem.elev(r['la'], r['lo'])
+                if e is not None: r['el'] = round(e); filled += 1
+        seen, unknown = apply_dem_visibility(pts, cum, reg, dem)
+        npk = sum(1 for r in reg if r['t'] == 'peak')
+        dem_note = (f"DEM z{dem.z}(≈{dem.res_m:.0f}m/px): 峰{npk}件中 可視{seen}件を実線化"
+                    f"{f' / 判定不能{unknown}件は破線のまま' if unknown else ''}"
+                    f"{f' / 標高補完{filled}件' if filled else ''}\n")
+        # GPXのele信頼性チェック(獲得標高と断面図の土台なので黙って通さない)
+        # 簡略化後のptsは数点まで減りうるので、生のtrkから拾う
+        dif = []
+        for i in range(0, len(trk), max(1, len(trk) // 60)):
+            e = dem.elev(trk[i][0], trk[i][1])
+            if e is not None: dif.append(trk[i][2] - e)
+        if len(dif) >= 5:
+            bias = sum(dif) / len(dif)
+            mad = sum(abs(d - bias) for d in dif) / len(dif)
+            dem_note += f"GPX標高 vs DEM: 平均差 {bias:+.0f}m / ばらつき {mad:.0f}m (n={len(dif)})\n"
+            if abs(bias) > 30 or mad > 30:
+                dem_note += ("⚠ GPXの標高が疑わしい。獲得標高と断面図がずれる"
+                             "(実測CTがあれば --ct で与える / 元GPXを確認)\n")
+        if dem.miss > dem.hit:
+            dem_note += "⚠ DEMの参照先が欠損だらけ(--emit-dem-fetch の範囲を広げたか確認)\n"
     segs = parse_segs(a.seg, total)
     domain = a.domain if a.domain != 'auto' else ('urban' if gain / max(total/1000, 0.1) < 15 else 'mountain')
 
@@ -390,7 +631,8 @@ def main():
            f"dec:{a.dec},domain:'{domain}'}}")
     sys.stderr.write(f"点数 {len(trk)}→{len(pts)} / 距離 {total/1000:.1f}km / 獲得 {gain:.0f}m / domain {domain}\n"
                      f"reg {len(reg)}件 (峰{sum(1 for r in reg if r['t']=='peak')} POI{sum(1 for r in reg if r['t']!='peak')}"
-                     f"{f' / 上限超過{dropped}件を切り捨て' if dropped else ''}) / segs {len(segs)} / サイズ約 {len(obj)/1024:.1f}KB\n")
+                     f"{f' / 上限超過{dropped}件を切り捨て' if dropped else ''}) / segs {len(segs)} / サイズ約 {len(obj)/1024:.1f}KB\n"
+                     + dem_note)
     if missing_vis:
         sys.stderr.write(f"⚠ --vis 指定がregに見つからない: {', '.join(missing_vis)} (綴りを確認)\n")
     if a.osm and not osm_items:
