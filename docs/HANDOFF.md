@@ -1,6 +1,6 @@
 # 登山HUD v3.2 引き継ぎ書(Claude Code 向け)
 
-作成: 2026-08-30 / dist build: 0830-1350J / コア82+スモーク70+ツール57件 全通過
+作成: 2026-08-30 / dist build: 0830-1350J / コア82+スモーク70+ツール75件 全通過
 前版(v3.1引き継ぎ書)からの差分: 残タスク1「N8 目標ペース(等速仮想走者)」を実装し、ゴーストソース4つが揃った。運用指示は リポジトリ直下の `CLAUDE.md` に集約。
 
 ---
@@ -15,7 +15,7 @@ python3 tools/build.py
 node test/core.test.js && node test/app.smoke.js && python3 test/gpx2route.test.py
 ```
 
-3スイート全通過(82+70+57)を確認してから作業開始。
+3スイート全通過(82+70+75)を確認してから作業開始。
 
 前提知識は3文書:
 - `CLAUDE.md` — 守るべき制約・コマンド・設計思想(毎回読む)
@@ -107,7 +107,7 @@ tools/
 test/
 ├── core.test.js       純ロジック 82件
 ├── app.smoke.js       jsdom統合 70件(sim経由の全画面フロー+v3.1回帰: 自宅導線・ラップゲート+v3.2: 目標ペース)
-└── gpx2route.test.py  変換ツール 57件(OSM分類・フィルタ・マージ・seg・domain判定+v3.2 DEM: PNGデコード・fetch生成・レイキャスト・ele検査)
+└── gpx2route.test.py  変換ツール 75件(OSM分類・seg・domain+v3.2 DEM: デコード/fetch/レイキャスト/ele検査、道路ベクタ: 分類/吸着/予算)
 dist/
 ├── index.html     ビルド成果物(これを配布・デプロイする)
 └── sw.js           Service Worker v3(地理院タイルキャッシュ対応)
@@ -149,5 +149,5 @@ v3でsw.jsが変わっているので、v2以前からの継続なら両方差�
 
 - `node test/core.test.js` → 82/82(v3.2でDEMデコード・等高線間隔・marching squares の18件を追加)
 - `node test/app.smoke.js` → 70/70(v3.0の45件+v3.1回帰11件: 自宅登録導線のUI文言/二度押し/永続化、ラップゲートのうろうろ・後戻り・前進通過・巻き戻し+v3.2の14件: 目標ペースの層開閉・5分きざみ・下限・キャンセル・永続化・等速位置・端クランプ・lap1に奪われない)
-- `python3 test/gpx2route.test.py` → 57/57(v3.2でDEM関連29件を追加。合成タイルに壁を1本立てて遮蔽/非遮蔽/範囲外を踏む)
+- `python3 test/gpx2route.test.py` → 75/75(v3.2でDEM関連29件+OSM道路ベクタ/吸着18件を追加)
 - 実機でしか分からないのは「視認性・方位の体感・ジェスチャー」の3点のみ、という原則は維持

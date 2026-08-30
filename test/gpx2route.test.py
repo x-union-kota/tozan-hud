@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 """gpx2route.py v3 の機械検証。合成GPX+偽Overpass JSONで
    emit-query / OSM分類・距離フィルタ / 著名峰マージ / vis / seg / domain判定を踏む。"""
-import json, math, os, subprocess, sys, tempfile, zlib
+import json, math, os, random, subprocess, sys, tempfile, zlib
 
 TOOLS = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'tools')
 FAILS = []
@@ -290,6 +290,100 @@ with tempfile.TemporaryDirectory() as td:
     open(os.path.join(root, '10', '900', '400.png'), 'wb').write(b'not a png')
     dem = G.DemTiles(root)
     ok(dem.elev(35.0, 139.0) is None, 'a corrupt/absent tile reads as missing, not as 0m')
+
+# ---- v3.2: OSM道路ベクタ(ルート吸着 --snap-osm / 焼き込み vec) ----
+print('[osm-vec]')
+
+def way(id_, tags, line):
+    return {'type': 'way', 'id': id_, 'tags': tags,
+            'geometry': [{'lat': la, 'lon': lo} for (la, lo) in line]}
+
+# 東西にまっすぐ伸びる歩行者道を「正解」にする
+LA0, LO0 = 35.0, 139.0
+KX = 111320.0 * math.cos(math.radians(LA0))
+TRUTH = [(LA0, LO0 + i * 20.0 / KX) for i in range(61)]        # 20m刻み・全長1200m
+
+with tempfile.TemporaryDirectory() as td:
+    osm = os.path.join(td, 'ways.json')
+    json.dump({'elements': [
+        way(1, {'highway': 'pedestrian', 'name': '正解の道'}, TRUTH),
+        # 30m北を並走する歩道(点ごとの最近傍だと交互に飛びつく相手)
+        way(2, {'highway': 'footway'}, [(LA0 + 30.0 / 110540.0, lo) for (_, lo) in TRUTH]),
+        # 直交する道(進行方向フィルタで候補から外れるべき)
+        way(3, {'highway': 'residential'},
+            [(LA0 - 200.0 / 110540.0 + j * 20.0 / 110540.0, LO0 + 600.0 / KX) for j in range(21)]),
+        way(4, {'railway': 'rail'}, [(LA0 - 80.0 / 110540.0, lo) for (_, lo) in TRUTH]),
+        way(5, {'natural': 'water'}, [(LA0 - 120.0 / 110540.0, lo) for (_, lo) in TRUTH]),
+        # 車専用道: 吸着候補から外れる
+        way(6, {'highway': 'motorway'}, [(LA0 + 8.0 / 110540.0, lo) for (_, lo) in TRUTH]),
+    ]}, open(osm, 'w', encoding='utf-8'))
+
+    ways = G.load_osm_ways([osm])
+    kinds = [w[0] for w in ways]
+    ok(kinds.count('road') == 4 and kinds.count('rail') == 1 and kinds.count('water') == 1,
+       'load_osm_ways classifies road / rail / water from `out geom`')
+
+    truth3 = [(la, lo, 5.0) for (la, lo) in TRUTH]
+    tlen = G.cumdist(truth3)[-1]
+
+    # GPSノイズを載せた「荒れたGPX」を実パイプライン(simplify→snap)に通す
+    random.seed(11)
+    raw = [(p[0] + random.gauss(0, 6) / 110540.0, p[1] + random.gauss(0, 6) / KX, p[2])
+           for p in G.densify(truth3, 5.0)]
+    noisy = G.simplify(raw, 6.0)
+    snapped, st = G.snap_to_osm(noisy, ways, 'urban', 60.0)
+    fixed = G.simplify(snapped, 6.0)
+
+    dv0 = G.route_deviation(noisy, truth3)
+    dv1 = G.route_deviation(fixed, truth3)
+    len0, len1 = G.cumdist(noisy)[-1], G.cumdist(fixed)[-1]
+    ok(dv1[0] < dv0[0], f'snap moves the noisy track closer to the real road ({dv0[0]:.1f}m → {dv1[0]:.1f}m)')
+    ok(abs(len1 - tlen) < abs(len0 - tlen),
+       f'snap removes the length inflation ({len0:.0f}m → {len1:.0f}m, truth {tlen:.0f}m)')
+    ok(st['max'] <= 60.0 + 1e-6, 'no point is moved further than --snap-max')
+    ok(st['snapped'] > st['total'] * 0.8, 'most points find a road to sit on')
+
+    # 単調化なしの素朴な最近傍射影より良いこと(この2段が要るという実測の裏取り)
+    ok(len1 < len0 * 0.8, 'arc-length monotonisation is what actually removes the inflation')
+
+    # 道から離れた区間は吸着しない(堀・ブロック越えの誤吸着防止)
+    far = [(LA0 + 300.0 / 110540.0, LO0 + i * 20.0 / KX, 5.0) for i in range(20)]
+    _, stf = G.snap_to_osm(far, ways, 'urban', 60.0)
+    ok(stf['snapped'] == 0, 'points with no road within --snap-max keep their original coordinates')
+
+    # 車専用道へは吸着しない
+    on_mw = [(LA0 + 8.0 / 110540.0, LO0 + i * 20.0 / KX, 5.0) for i in range(20)]
+    sn_mw, _ = G.snap_to_osm(on_mw, ways, 'urban', 60.0)
+    dmw = G.route_deviation(sn_mw, [(la, lo, 0) for (la, lo) in TRUTH])
+    ok(dmw[0] < 8.0, 'a track on a motorway is pulled to the walkable road, never onto the motorway')
+
+    # ---- CLI: vec 焼き込みと各種オフスイッチ ----
+    gpx = os.path.join(td, 'r.gpx')
+    open(gpx, 'w', encoding='utf-8').write(
+        '<?xml version="1.0"?><gpx version="1.1"><trk><trkseg>' +
+        ''.join(f'<trkpt lat="{p[0]:.6f}" lon="{p[1]:.6f}"><ele>5</ele></trkpt>' for p in noisy) +
+        '</trkseg></trk></gpx>')
+
+    r = run([gpx, '--id', 'v', '--name', 'VEC', '--osm', osm])
+    ok('vec:{' in r.stdout, 'vec block is baked into the route object')
+    ok('"road"' in r.stdout and '"rail"' in r.stdout and '"water"' in r.stdout,
+       'vec carries road / rail / water groups')
+    ok('snap-osm:' in r.stderr, 'stderr reports what the snap did')
+    ok('距離' in r.stderr and '→' in r.stderr, 'stderr reports the distance change')
+
+    r2 = run([gpx, '--id', 'v', '--name', 'VEC', '--osm', osm, '--no-vec'])
+    ok('vec:{' not in r2.stdout, '--no-vec suppresses the baked vectors')
+    r3 = run([gpx, '--id', 'v', '--name', 'VEC', '--osm', osm, '--no-snap'])
+    ok('snap-osm:' not in r3.stderr, '--no-snap skips the snapping entirely')
+    ok(len(r3.stdout) != len(r.stdout), '--no-snap yields different geometry than snapped')
+
+    r4 = run([gpx, '--id', 'v', '--name', 'VEC', '--osm', osm, '--vec-kb', '0.02'])
+    ok(len(r4.stdout) < len(r.stdout) and '"road"' in r4.stdout,
+       'vec size budget drops the lowest-priority lines but keeps the main road')
+
+    r5 = run([gpx, '--emit-query'])
+    ok('out geom' in r5.stdout, 'emit-query asks for way geometry (needed for vec and snap)')
+    ok('"highway"' in r5.stdout and '"railway"' in r5.stdout, 'emit-query covers highway and railway ways')
 
 print(f"\n{STEP[0] - len(FAILS)}/{STEP[0]} passed")
 sys.exit(1 if FAILS else 0)

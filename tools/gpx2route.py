@@ -494,6 +494,243 @@ def apply_dem_visibility(pts, cum, reg, dem, max_obs=40):
         elif not any_known: unknown += 1                  # 全観測点で判定不能 → v:0 のまま
     return seen, unknown
 
+# ---------- v3.2: OSM道路ベクタ(ルート吸着 + 焼き込み) ----------
+# 表示優先度。4=主要幹線 … 1=歩道/細街路。加算ディスプレイでは線種と太さで区別する
+ROAD_CLASS = {
+    'motorway': 4, 'trunk': 4, 'primary': 4,
+    'motorway_link': 4, 'trunk_link': 4, 'primary_link': 4,
+    'secondary': 3, 'tertiary': 3, 'secondary_link': 3, 'tertiary_link': 3,
+    'residential': 2, 'unclassified': 2, 'living_street': 2, 'pedestrian': 2,
+    'service': 1, 'footway': 1, 'path': 1, 'steps': 1, 'cycleway': 1, 'track': 1,
+}
+SNAP_EXCLUDE = ('motorway', 'motorway_link')       # 首都高等の車専用道へ吸着させない
+SNAP_TRAIL = ('path', 'footway', 'track', 'steps', 'pedestrian')   # mountainの主候補
+
+def load_osm_ways(paths):
+    """Overpass の `out geom` 応答から折れ線を取り出す → [(kind, cls, [(la,lo),...])]"""
+    out = []
+    for p in paths:
+        try: doc = json.load(open(p, encoding='utf-8'))
+        except Exception as e: sys.exit(f'OSM JSONを読めない: {p} ({e})')
+        for el in doc.get('elements', doc if isinstance(doc, list) else []):
+            geom = el.get('geometry')
+            if not geom or len(geom) < 2: continue
+            tags = el.get('tags') or {}
+            line = [(g['lat'], g['lon']) for g in geom if 'lat' in g and 'lon' in g]
+            if len(line) < 2: continue
+            hw, rw = tags.get('highway'), tags.get('railway')
+            if hw in ROAD_CLASS: out.append(('road', ROAD_CLASS[hw], line, hw))
+            elif rw in ('rail', 'subway', 'light_rail', 'monorail', 'tram'):
+                out.append(('rail', 1 if rw == 'subway' else 2, line, rw))
+            elif tags.get('natural') == 'water' or tags.get('waterway') in ('riverbank', 'river', 'canal', 'moat'):
+                out.append(('water', 1, line, tags.get('waterway') or 'water'))
+    return out
+
+def _pseg_pt(p, a, b):
+    """点pから線分abへの (距離, 射影点)。すべてローカル平面座標(m)"""
+    vx, vy = b[0] - a[0], b[1] - a[1]
+    L2 = vx * vx + vy * vy
+    if L2 <= 0: return math.hypot(p[0] - a[0], p[1] - a[1]), a
+    t = max(0.0, min(1.0, ((p[0] - a[0]) * vx + (p[1] - a[1]) * vy) / L2))
+    q = (a[0] + vx * t, a[1] + vy * t)
+    return math.hypot(p[0] - q[0], p[1] - q[1]), q
+
+class SegIndex:
+    """線分の格子インデックス。全探索だと 5000way×点数 で現実的な時間に終わらない。
+       segs: [(a, b, way_id, s0)] — s0 はその道の始点からの弧長(m)"""
+    def __init__(self, segs, cell=120.0):
+        self.segs, self.cell, self.g = segs, cell, {}
+        for i, (a, b, _w, _s) in enumerate(segs):
+            n = max(1, int(math.hypot(b[0] - a[0], b[1] - a[1]) / cell) + 1)
+            for k in range(n + 1):
+                t = k / n
+                key = (int((a[0] + (b[0] - a[0]) * t) // cell), int((a[1] + (b[1] - a[1]) * t) // cell))
+                self.g.setdefault(key, []).append(i)
+
+    def candidates(self, p, r, k=8, dirv=None, cos_min=0.4):
+        """点pの射影候補を距離順にk個 → [(距離, 射影点, way_id, 弧長)]。
+           dirv/cos_min で進行方向に直交する道を候補から外す(直角に跳ねるのを防ぐ)。"""
+        cx, cy, rad = int(p[0] // self.cell), int(p[1] // self.cell), int(r // self.cell) + 1
+        seen, out = set(), []
+        for dx in range(-rad, rad + 1):
+            for dy in range(-rad, rad + 1):
+                for i in self.g.get((cx + dx, cy + dy), ()):
+                    if i in seen: continue
+                    seen.add(i)
+                    a, b, w, s0 = self.segs[i]
+                    if dirv is not None:
+                        sx, sy = b[0] - a[0], b[1] - a[1]
+                        L = math.hypot(sx, sy)
+                        if L <= 0 or abs((sx * dirv[0] + sy * dirv[1]) / L) < cos_min: continue
+                    d, q = _pseg_pt(p, a, b)
+                    if d <= r: out.append((d, q, w, s0 + math.hypot(q[0] - a[0], q[1] - a[1])))
+        out.sort(key=lambda t: t[0])
+        pick, used = [], set()          # 同じ道からは1つだけ(候補枠を平行な同一道路で埋めない)
+        for c in out:
+            if c[2] in used: continue
+            used.add(c[2]); pick.append(c)
+            if len(pick) >= k: break
+        return pick
+
+def densify(pts, step=10.0):
+    """ルートを step 間隔に密化(標高は線形補間)"""
+    out = [pts[0]]
+    for i in range(1, len(pts)):
+        a, b = pts[i - 1], pts[i]
+        d = hav(a, b)
+        n = max(1, int(d / step))
+        for k in range(1, n + 1):
+            f = k / n
+            out.append((a[0] + (b[0] - a[0]) * f, a[1] + (b[1] - a[1]) * f, a[2] + (b[2] - a[2]) * f))
+    return out
+
+def _at_arclen(xy, cum, s):
+    """道 xy(累積長 cum)の弧長 s の位置"""
+    s = max(0.0, min(cum[-1], s))
+    lo, hi = 0, len(cum) - 1
+    while lo + 1 < hi:
+        mid = (lo + hi) // 2
+        if cum[mid] <= s: lo = mid
+        else: hi = mid
+    seg = cum[hi] - cum[lo]
+    f = 0.0 if seg <= 0 else (s - cum[lo]) / seg
+    return (xy[lo][0] + (xy[hi][0] - xy[lo][0]) * f, xy[lo][1] + (xy[hi][1] - xy[lo][1]) * f)
+
+def snap_to_osm(pts, ways, domain, max_snap=60.0, step=10.0, beam=8, w_move=1.0, w_switch=60.0):
+    """概形ルート/荒れたGPXを、同じOSMデータの道路網へ射影して一致させる。
+
+       実測から分かった、この処理に必要な3段:
+       ① 点ごとの最近傍射影だけでは地図マッチングにならない。密な都市部では点ごとに
+          別の道を選んでしまい、ずれも距離も悪化する → 系列全体をViterbiで解く
+          (放射コスト=射影距離、遷移コスト=|間隔-step|*w_move + 道が変わるなら w_switch)。
+       ② 射影は横ずれしか消さない。縦方向のノイズが残るので距離が大きく水増しされる
+          → 同じ道に乗っている区間は弧長を単調化して縦ジッタを消す。
+       ③ 道から離れた区間は「吸着しない」を候補に持たせて原座標を維持する
+          (堀・ブロック越えの誤吸着防止)。
+       → (吸着後の点列, 統計dict)"""
+    lat0 = pts[0][0]
+    wxy, wcum, cand = {}, {}, []
+    for wi, (kind, cls, line, sub) in enumerate(ways):
+        if kind != 'road' or sub in SNAP_EXCLUDE: continue
+        if domain == 'mountain' and sub not in SNAP_TRAIL and cls <= 1: continue
+        xy = [_xy((q[0], q[1], 0), lat0) for q in line]
+        cum = [0.0]
+        for i in range(1, len(xy)):
+            cum.append(cum[-1] + math.hypot(xy[i][0] - xy[i - 1][0], xy[i][1] - xy[i - 1][1]))
+        wxy[wi], wcum[wi] = xy, cum
+        for i in range(1, len(xy)):
+            cand.append((xy[i - 1], xy[i], wi, cum[i - 1]))
+    if not cand: return pts, {'segs': 0, 'snapped': 0, 'total': 0, 'mean': 0.0, 'max': 0.0}
+    idx = SegIndex(cand)
+    dense = densify(pts, step)
+    dxy = [_xy(p, lat0) for p in dense]
+
+    NOSNAP = max_snap * 0.9            # 「吸着しない」候補の放射コスト
+    cols = []
+    for i, q in enumerate(dxy):
+        a, b = dxy[max(0, i - 1)], dxy[min(len(dxy) - 1, i + 1)]
+        L = math.hypot(b[0] - a[0], b[1] - a[1])
+        dirv = ((b[0] - a[0]) / L, (b[1] - a[1]) / L) if L > 0 else None
+        cs = idx.candidates(q, max_snap, beam, dirv)
+        cs.append((NOSNAP, q, None, 0.0))
+        cols.append(cs)
+
+    cost = [c[0] for c in cols[0]]
+    back = [[-1] * len(cols[0])]
+    for i in range(1, len(cols)):
+        cur, bk = [], []
+        for (d, q, w, s) in cols[i]:
+            best, bj = None, -1
+            for j, (pd, pq, pw, ps) in enumerate(cols[i - 1]):
+                t = abs(math.hypot(q[0] - pq[0], q[1] - pq[1]) - step) * w_move
+                if w != pw: t += w_switch
+                v = cost[j] + t
+                if best is None or v < best: best, bj = v, j
+            cur.append(best + d); bk.append(bj)
+        cost, back = cur, back + [bk]
+    j = min(range(len(cost)), key=lambda k: cost[k])
+    chosen = [0] * len(cols)
+    for i in range(len(cols) - 1, -1, -1):
+        chosen[i] = j; j = back[i][j]
+    picked = [cols[i][chosen[i]] for i in range(len(cols))]
+
+    # ② 同じ道に乗り続けている区間は弧長を単調化する(縦ジッタ=距離水増しの正体)
+    i = 0
+    while i < len(picked):
+        w = picked[i][2]
+        if w is None: i += 1; continue
+        j = i
+        while j + 1 < len(picked) and picked[j + 1][2] == w: j += 1
+        if j > i:
+            fwd = picked[j][3] >= picked[i][3]
+            run_v = None
+            for k in range(i, j + 1):
+                d, q, _w, s_k = picked[k]
+                v = s_k if run_v is None else (max(run_v, s_k) if fwd else min(run_v, s_k))
+                pnt = _at_arclen(wxy[w], wcum[w], v)
+                if math.hypot(pnt[0] - dxy[k][0], pnt[1] - dxy[k][1]) > max_snap:
+                    v, pnt = s_k, q     # 単調化を諦める。ただし道の上には残す(原座標へは戻さない)
+                run_v = v
+                picked[k] = (d, pnt, w, v)
+        i = j + 1
+
+    kx = 111320.0 * math.cos(math.radians(lat0))
+    out, moved, snapped = [], [], 0
+    for i, p in enumerate(dense):
+        d, q, w, s = picked[i]
+        if w is None: out.append(p); continue
+        mv = math.hypot(q[0] - dxy[i][0], q[1] - dxy[i][1])
+        if mv > max_snap:            # 単調化で押し出された点。max_snap の約束は破らない
+            out.append(p); continue
+        snapped += 1; moved.append(mv)
+        out.append((q[1] / 110540.0, q[0] / kx, p[2]))       # _xy の逆変換
+    st = {'segs': len(cand), 'snapped': snapped, 'total': len(dense),
+          'mean': (sum(moved) / len(moved)) if moved else 0.0,
+          'max': max(moved) if moved else 0.0}
+    return out, st
+
+def route_deviation(orig, new):
+    """origの各点から new 折れ線への距離 → (平均, 最大)。吸着で何m動いたかの実測値"""
+    lat0 = orig[0][0]
+    xy = [_xy(p, lat0) for p in new]
+    ds = [min(_pseg(_xy(p, lat0), xy[i - 1], xy[i]) for i in range(1, len(xy))) for p in orig]
+    return (sum(ds) / len(ds), max(ds))
+
+def bake_vec(pts, ways, margin, tol, budget_kb):
+    """地図パネル用のベクタを焼き込む。ルート近傍だけ・道路クラスで間引き・DP簡略化。"""
+    lat0 = pts[0][0]
+    xy_pts = [_xy(p, lat0) for p in pts]
+    groups = {'road': [], 'water': [], 'rail': []}
+    for (kind, cls, line, sub) in ways:
+        # ルート回廊から遠い線は落とす(端点と中点で足切り→残ったら全点で判定)
+        probe = [line[0], line[len(line) // 2], line[-1]]
+        if min(min_dist_to_route((q[0], q[1], 0), xy_pts, lat0) for q in probe) > margin * 2:
+            continue
+        if min(min_dist_to_route((q[0], q[1], 0), xy_pts, lat0) for q in line) > margin:
+            continue
+        if kind == 'road' and cls <= 1 and margin > 250:
+            # 細街路・歩道は近傍だけ(都市部で本数が爆発する)
+            if min(min_dist_to_route((q[0], q[1], 0), xy_pts, lat0) for q in line) > 250:
+                continue
+        simp = simplify([(q[0], q[1], 0) for q in line], tol)
+        if len(simp) >= 2: groups[kind].append((cls, simp))
+    # サイズ予算: 超えたら優先度の低いものから落とす
+    def size_of(gs):
+        return sum(len(enc_poly(s)) + 6 for g in gs.values() for (_, s) in g)
+    order = ['road', 'rail', 'water']
+    while size_of(groups) > budget_kb * 1024:
+        worst = None
+        for k in order:
+            for i, (cls, s) in enumerate(groups[k]):
+                if worst is None or cls < worst[0]: worst = (cls, k, i)
+        if worst is None: break
+        groups[worst[1]].pop(worst[2])
+    vec = {}
+    for k in order:
+        if groups[k]:
+            vec[k] = [[cls, enc_poly(s)] for (cls, s) in sorted(groups[k], key=lambda x: -x[0])]
+    return vec
+
 # ---------- v3: 区間ボス手動指定 ----------
 def parse_segs(specs, total):
     """"a-b:名前" のリスト。a,b は 0〜1 なら割合、それ以外は沿道距離m。"""
@@ -513,7 +750,7 @@ def parse_segs(specs, total):
     return segs
 
 # ---------- v3: Overpassクエリ生成 ----------
-def emit_query(pts, poi_radius, peak_km):
+def emit_query(pts, poi_radius, peak_km, vec_margin=400.0):
     las = [p[0] for p in pts]; los = [p[1] for p in pts]
     mgn_poi = (poi_radius + 500) / 110540.0
     k = math.cos(math.radians(sum(las)/len(las)))
@@ -522,6 +759,8 @@ def emit_query(pts, poi_radius, peak_km):
     mgn_pk_lo = peak_km * 1000 / (111320.0 * k)
     bb_poi = f"{min(las)-mgn_poi:.4f},{min(los)-mgn_poi_lo:.4f},{max(las)+mgn_poi:.4f},{max(los)+mgn_poi_lo:.4f}"
     bb_pk  = f"{min(las)-mgn_pk:.4f},{min(los)-mgn_pk_lo:.4f},{max(las)+mgn_pk:.4f},{max(los)+mgn_pk_lo:.4f}"
+    mgn_v, mgn_v_lo = vec_margin / 110540.0, vec_margin / (111320.0 * k)
+    bb_vec = f"{min(las)-mgn_v:.4f},{min(los)-mgn_v_lo:.4f},{max(las)+mgn_v:.4f},{max(los)+mgn_v_lo:.4f}"
     q = f"""[out:json][timeout:120];
 (
   node["natural"~"^(peak|volcano)$"]["name"]({bb_pk});
@@ -534,8 +773,16 @@ def emit_query(pts, poi_radius, peak_km):
   nwr["amenity"="place_of_worship"]({bb_poi});
 );
 out center;
+// --- v3.2: 地図パネル用の道路/鉄道/水域ベクタ と ルート吸着の材料(ジオメトリが要る) ---
+(
+  way["highway"]({bb_vec});
+  way["railway"~"^(rail|subway|light_rail|monorail|tram)$"]({bb_vec});
+  way["natural"="water"]({bb_vec});
+  way["waterway"~"^(riverbank|river|canal|moat)$"]({bb_vec});
+);
+out geom;
 // 実行例: curl -sG https://overpass-api.de/api/interpreter --data-urlencode data@query.txt > poi.json
-// bbox: POI近傍={bb_poi} / 山頂={bb_pk} ({peak_km}km圏)
+// bbox: POI近傍={bb_poi} / 山頂={bb_pk} ({peak_km}km圏) / ベクタ={bb_vec}
 // shop/tower も欲しい場合は該当行を足す(都市部では件数が溢れるので既定では出さない)"""
     print(q)
 
@@ -558,6 +805,12 @@ def main():
     ap.add_argument('--dem-zoom', type=int, default=12, help='DEMのズーム (既定12 ≈ 27m/px。遠景の遮蔽判定はこれで十分)')
     ap.add_argument('--dem-src', default='dem_png', choices=['dem_png', 'dem5a_png'], help='タイル種別 (既定 dem_png。dem5a_pngはz15専用で欠損域あり)')
     ap.add_argument('--dem-radius-km', type=float, default=None, help='DL範囲: ルートbboxからの余裕km (既定は --peak-km と同じ)')
+    # v3.2 OSM道路ベクタ
+    ap.add_argument('--no-snap', action='store_true', help='--osm があってもルートの道路吸着をしない')
+    ap.add_argument('--snap-max', type=float, default=60.0, help='吸着を諦める射影距離 m (既定60。堀・ブロック越えの誤吸着防止)')
+    ap.add_argument('--no-vec', action='store_true', help='地図パネル用の道路ベクタを焼き込まない')
+    ap.add_argument('--vec-margin', type=float, default=400.0, help='ベクタ採用: ルートからの距離 m (既定400)')
+    ap.add_argument('--vec-kb', type=float, default=30.0, help='ベクタのサイズ予算 KB (既定30。超過分は優先度の低い線から落とす)')
     ap.add_argument('--seg', action='append', default=[], help='区間ボス "a-b:名前" (a,b: 0〜1=割合 / それ以外=m。複数可)')
     ap.add_argument('--dec', type=float, default=7.5, help='磁気偏角(西偏+)。地理院の管区値を指定 (既定7.5)')
     ap.add_argument('--domain', default='auto', choices=['auto', 'mountain', 'urban'])
@@ -570,13 +823,38 @@ def main():
     pts = simplify(trk, a.tol)
 
     if a.emit_query:
-        emit_query(pts, a.poi_radius, a.peak_km)
+        emit_query(pts, a.poi_radius, a.peak_km, a.vec_margin)
         return
     if a.emit_dem_fetch:
         emit_dem_fetch(pts, a.dem_radius_km if a.dem_radius_km is not None else a.peak_km,
                        a.dem_zoom, a.dem_src)
         return
     if not a.id or not a.name: sys.exit('--id と --name は必須です(--emit-query 時を除く)')
+
+    # --- v3.2: ルートの道路吸着。ジオメトリが変わるので距離/CT/WPスナップより先に済ませる ---
+    ways = load_osm_ways(a.osm) if a.osm else []
+    snap_note = ''
+    if ways and not a.no_snap:
+        pre_cum = cumdist(pts); pre_gain = total_gain(pts)
+        dom0 = a.domain if a.domain != 'auto' else \
+               ('urban' if pre_gain / max(pre_cum[-1] / 1000, 0.1) < 15 else 'mountain')
+        snapped, st = snap_to_osm(pts, ways, dom0, a.snap_max)
+        if st['snapped']:
+            before = pts
+            pts = simplify(snapped, a.tol)
+            dev = route_deviation(before, pts)
+            after = cumdist(pts)[-1]
+            dpct = (after / pre_cum[-1] - 1) * 100 if pre_cum[-1] > 0 else 0.0
+            snap_note = (f"snap-osm: 道路{st['segs']}セグメントへ {st['snapped']}/{st['total']}点を吸着"
+                         f"(射影 平均{st['mean']:.1f}m / 最大{st['max']:.1f}m) → {len(pts)}点\n"
+                         f"  元ジオメトリとの差: 平均{dev[0]:.1f}m / 最大{dev[1]:.1f}m"
+                         f"{'  ← 逸脱閾値50mを超える差が元ルートにあった(判定精度の修正)' if dev[1] > 50 else ''}\n"
+                         f"  距離 {pre_cum[-1]:.0f}m → {after:.0f}m ({dpct:+.0f}%)\n")
+            if abs(dpct) > 10:
+                snap_note += ("⚠ 吸着で距離が10%以上変わった。距離はCT・ペース・残距離の土台なので、"
+                              "--dump-json で形を確認するか --no-snap を検討する\n")
+        else:
+            snap_note = f"snap-osm: 吸着できる道路が {a.snap_max:.0f}m 以内に無かった(原ジオメトリを維持)\n"
 
     cum = cumdist(pts)
     total, gain = cum[-1], total_gain(pts)
@@ -622,8 +900,17 @@ def main():
     segs = parse_segs(a.seg, total)
     domain = a.domain if a.domain != 'auto' else ('urban' if gain / max(total/1000, 0.1) < 15 else 'mountain')
 
+    vec, vec_note = {}, ''
+    if ways and not a.no_vec:
+        vec = bake_vec(pts, ways, a.vec_margin, a.tol, a.vec_kb)
+        nline = sum(len(v) for v in vec.values())
+        vkb = sum(len(p) for v in vec.values() for (_, p) in v) / 1024.0
+        vec_note = (f"vec: {nline}本 焼き込み ({' / '.join(f'{k}{len(v)}' for k, v in vec.items())}) "
+                    f"約{vkb:.1f}KB\n") if nline else ''
+
+    vec_s = f"vec:{json.dumps(vec, separators=(',', ':'))}," if vec else ''
     obj = (f"{{id:'{a.id}',name:'{a.name}',dist:{round(total)},gain:{round(gain)},"
-           f"poly:'{enc_poly(pts)}',ele:'{enc_ele(pts)}',"
+           f"poly:'{enc_poly(pts)}',ele:'{enc_ele(pts)}',{vec_s}"
            f"wps:{json.dumps(wps, ensure_ascii=False, separators=(',',':'))},"
            f"cts:{json.dumps([[c[0],round(c[1])] for c in cts], separators=(',',':'))},"
            f"reg:{json.dumps(reg, ensure_ascii=False, separators=(',',':'))},"
@@ -632,10 +919,10 @@ def main():
     sys.stderr.write(f"点数 {len(trk)}→{len(pts)} / 距離 {total/1000:.1f}km / 獲得 {gain:.0f}m / domain {domain}\n"
                      f"reg {len(reg)}件 (峰{sum(1 for r in reg if r['t']=='peak')} POI{sum(1 for r in reg if r['t']!='peak')}"
                      f"{f' / 上限超過{dropped}件を切り捨て' if dropped else ''}) / segs {len(segs)} / サイズ約 {len(obj)/1024:.1f}KB\n"
-                     + dem_note)
+                     + snap_note + vec_note + dem_note)
     if missing_vis:
         sys.stderr.write(f"⚠ --vis 指定がregに見つからない: {', '.join(missing_vis)} (綴りを確認)\n")
-    if a.osm and not osm_items:
+    if a.osm and not osm_items and not ways:
         sys.stderr.write("⚠ OSM JSONから対象が1件も取れていない(クエリ/ファイルを確認)\n")
     if a.dump_json:
         full = {'id': a.id, 'name': a.name, 'dist': round(total), 'gain': round(gain),
