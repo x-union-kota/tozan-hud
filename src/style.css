@@ -1,0 +1,65 @@
+/* 登山HUD — 開発ガイド実証パレット準拠
+   背景#000=透明 / 主#ffd83b / 文字#f5f1e6 / 非活性#6b675c / 警告#ff5a60 #f5a11c */
+html, body { background: #000; overflow: hidden; margin: 0; padding: 0; }
+body {
+  width: 600px; height: 600px; position: relative;
+  user-select: none; -webkit-user-select: none;
+  font-family: 'Courier New', ui-monospace, Menlo, monospace;
+  color: #f5f1e6; cursor: default;
+}
+#app { position: absolute; inset: 0; }
+
+/* ---- 共通 ---- */
+.dim    { color: #6b675c; }
+.main-c { color: #ffd83b; }
+.t-w .main-c { color: #f5f1e6; }   /* ↓で低輝度(白)モード */
+.acc1   { color: #ff5a60; }
+.acc2   { color: #f5a11c; }
+.ctr    { text-align: center; }
+.abs    { position: absolute; left: 0; right: 0; }
+
+/* ---- main HUD ゾーン ---- */
+.z-head  { top: 6px;  height: 26px; font-size: 18px; padding: 0 14px; }
+.z-arrow { top: 30px; height: 158px; }
+.z-big   { top: 192px; }
+.z-eta   { top: 366px; }
+.z-ct    { top: 466px; }
+.z-band  { bottom: 0; height: 52px; line-height: 52px; font-size: 21px;
+           text-align: center; }
+
+.big1 { font-size: 84px; font-weight: bold; line-height: 1.0; letter-spacing: -2px; }
+.big2 { font-size: 44px; font-weight: bold; margin-top: 6px; }
+.eta1 { font-size: 32px; }
+.eta2 { font-size: 24px; margin-top: 6px; }
+.ct1  { font-size: 24px; }
+.sub  { font-size: 18px; }
+
+.arrow-wrap { width: 150px; height: 150px; margin: 0 auto; position: relative; }
+.arrow-lbl  { font-size: 18px; }
+
+/* ---- 逸脱警告 ---- */
+.warn-line { border-top: 4px solid #ff5a60; border-bottom: 4px solid #ff5a60;
+             padding: 6px 0; animation: blink 1s step-end infinite; }
+@keyframes blink { 50% { border-color: #5a1114; } }
+.warn-title { font-size: 34px; font-weight: bold; color: #ff5a60; }
+.warn-dist  { font-size: 92px; font-weight: bold; color: #ff5a60; line-height: 1.05; }
+
+/* ---- select / ready / done / overlay ---- */
+.screen-title { font-size: 22px; letter-spacing: 4px; }
+.route-name { font-size: 34px; font-weight: bold; line-height: 1.25; }
+.stat-row   { font-size: 23px; line-height: 1.75; }
+.hint  { font-size: 19px; }
+.navlr { font-size: 46px; }
+.dots  { font-size: 22px; letter-spacing: 10px; }
+
+.overlay { position: absolute; inset: 0; background: #000; z-index: 5;
+           padding: 60px 44px 0; box-sizing: border-box; }
+.ov-title { font-size: 28px; font-weight: bold; }
+.ov-body  { font-size: 22px; line-height: 1.65; margin-top: 26px; }
+
+.frame { border: 2px solid #6b675c; border-radius: 6px; padding: 14px 18px; }
+
+/* 夜間(空レイヤ): 暗赤系で暗順応を守る。強制輝度制御はWebから不可のため配色+案内で対応 */
+.t-night { color: #b04040; }
+.t-night .main-c, .t-night .dim, .t-night .acc2 { color: #b04040; }
+.t-night .acc1 { color: #ff5a60; }   /* 警告だけは従来色を維持(安全優先) */
