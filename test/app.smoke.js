@@ -167,6 +167,52 @@ const sleep = (ms) => new Promise(r => setTimeout(r, ms));
   key('ArrowDown');                   // 診断を閉じる
   ok(/ピンチで自宅削除/.test(text()), 'ready hint switches to deletion once registered');
 
+  // ---- N8: 目標ペース(等速仮想走者) ----
+  {
+    ok(/↑ 目標ペース/.test(text()) && /未設定/.test(text()), 'ready advertises an unset pace goal');
+    key('ArrowUp');
+    ok(T().S.paceEdit != null && T().S.diag === false, 'ArrowUp opens the pace layer (not diag)');
+    ok(/等速の仮想走者/.test(text()), 'pace layer names the virtual runner');
+    ok(/1周の目標タイム/.test(text()), 'loop route asks for a per-lap target');
+    const base = T().S.paceEdit;
+    key('ArrowRight');
+    ok(T().S.paceEdit === base + 5, '→ adds 5 min');
+    key('ArrowLeft'); key('ArrowLeft');
+    ok(T().S.paceEdit === base - 5, '← subtracts 5 min');
+    for (let i = 0; i < 60; i++) key('ArrowLeft');
+    ok(T().S.paceEdit === 0 && /設定しない/.test(text()), 'below the floor collapses to 設定しない');
+    key('Escape');
+    ok(T().S.paceEdit === null && T().S.paceGoal === null && T().S.mode === 'ready',
+       'Escape cancels the edit without saving and stays on ready');
+
+    key('ArrowUp'); key('ArrowRight'); key('ArrowRight');
+    const goal = T().S.paceEdit;
+    key('Enter');
+    ok(T().S.paceEdit === null && T().S.paceGoal === goal, 'Enter commits the goal and closes the layer');
+    ok(JSON.parse(window.localStorage.getItem('thud.paceGoal.' + T().S.route.id)) === goal,
+       'goal persisted per route');
+    ok(/設定中/.test(text()), 'ready shows the committed goal');
+
+    const S3 = T().S, tot = S3.route.total;
+    S3.tracking = true; S3.ghostSrc = 'pace';
+    S3.startMs = S3.lapStartMs = T().nowMs() - goal * 60000 / 2;
+    const gA = T().ghostAlongNow();
+    ok(Math.abs(gA - tot / 2) < tot * 0.02, 'pace ghost sits halfway at half the target time');
+    S3.lapStartMs = T().nowMs() - goal * 60000 * 2;
+    ok(T().ghostAlongNow() === tot, 'pace ghost clamps at the route end');
+
+    // 明示設定の目標ペースは2周目の「1周目の自分」に奪われない
+    S3.lap = 1; S3.lapTimes = []; S3.lapStartMs = T().nowMs() - 600000;
+    S3.proj = { dist: 5 }; S3.along = tot - 10;
+    S3.track = [[0, 0, 0, 0], [1, 0, 0, 10], [2, 0, 0, 20], [3, 0, 0, 30], [4, 0, 0, 40], [5, 0, 0, 50]];
+    S3.lastFix = { la: S3.route.pts[0][0], lo: S3.route.pts[0][1], acc: 8, t: Date.now() };
+    const nw3 = T().nowMs();
+    S3.lapHist = [[nw3 - 30000, tot - 80], [nw3 - 6000, tot - 30]];
+    T().checkLapAndSegs(nw3);
+    ok(S3.lap === 2 && S3.ghostSrc === 'pace', 'lap 2 does not steal an explicit pace goal');
+    S3.tracking = false; S3.ghostSrc = ''; S3.paceGoal = null; S3.track = [];
+  }
+
   // ---- v3.1 回帰: ラップ進行方向ゲート ----
   {
     const S2 = T().S, nw = T().nowMs(), tot = S2.route.total;

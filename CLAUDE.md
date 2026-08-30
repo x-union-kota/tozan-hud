@@ -10,7 +10,7 @@ Meta Ray-Ban Display(HUD+Neural Band)向けの登山/ランHUD。単一HTMLのWe
 ```bash
 python3 tools/build.py            # src/* → dist/index.html (単一HTML組み立て)
 node test/core.test.js            # 純ロジック 64件
-node test/app.smoke.js            # jsdom統合 56件 (要: npm install jsdom / dist を先にビルド)
+node test/app.smoke.js            # jsdom統合 70件 (要: npm install jsdom / dist を先にビルド)
 python3 test/gpx2route.test.py    # 変換ツール 28件
 
 cp dist/index.html index.html && cp dist/sw.js sw.js   # 公開用コピー(GitHub Pages はリポジトリ直下を配信)
@@ -49,9 +49,8 @@ dist/index.html dist/sw.js   ビルド成果物
 
 ## 残タスク(優先度順・詳細は HANDOFF.md §1)
 
-1. N8「目標ペース(等速仮想走者)」ゴーストソース(`S.ghostSrc='pace'` を既存3ソースと同構造で)
-2. 星表拡充(現在 輝星69+星座20。外部星表データを手元DLして `make_stars.py` に投入する口を作る)
-3. 検証チェーン⑥⑦の手順書化(sim既知ゴースト照合・Stellarium照合)
+1. 星表拡充(現在 輝星69+星座20。外部星表データを手元DLして `make_stars.py` に投入する口を作る)
+2. 検証チェーン⑥⑦の手順書化(sim既知ゴースト照合・Stellarium照合)
 
 コンテナ/サンドボックスから Overpass API・DEMタイル等への外部アクセスは不可の前提で、
 「ユーザーが手元でダウンロード → ツールに投入」のオフライン2段構えを維持すること(gpx2route.py が前例)。

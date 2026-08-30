@@ -1,4 +1,4 @@
-# 登山HUD (tozan-hud) v3.1
+# 登山HUD (tozan-hud) v3.2
 
 Meta Ray-Ban Display(HUD + Neural Band)向けの登山/ランHUD。CDN・外部依存ゼロの単一HTML Webアプリ。
 
@@ -11,11 +11,11 @@ Meta Ray-Ban Display(HUD + Neural Band)向けの登山/ランHUD。CDN・外部�
 npm install jsdom                 # jsdom統合テスト用
 python3 tools/build.py            # src/* → dist/index.html
 node test/core.test.js            # 純ロジック 64件
-node test/app.smoke.js            # jsdom統合 56件
+node test/app.smoke.js            # jsdom統合 70件
 python3 test/gpx2route.test.py    # 変換ツール 28件
 ```
 
-3スイート全通過(64 + 56 + 28 = 148件)を確認してから作業を始める。
+3スイート全通過(64 + 70 + 28 = 162件)を確認してから作業を始める。
 
 ## 公開(GitHub Pages)
 

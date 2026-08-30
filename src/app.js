@@ -25,6 +25,7 @@
     identLayer: 'ground', identFilter: 0, identSel: 0, night: false,
     lap: 1, lapTimes: [], lapStartMs: 0, lapHist: [], segState: null, segPB: {},
     ghost: null, ghostSrc: '', prevGhostGap: null, overtakeArmed: true,
+    paceGoal: null, paceEdit: null,   // N8: 目標タイム(分)。paceEdit非nullの間はready上の目標ペース層
     ceremonyDone: {}, summitLog: [],
     home: lsGet('thud.home'),
     tracking: false,
@@ -377,6 +378,8 @@
       if (lastTk && lastTk.length > 8) { S.ghost = { samples: lastTk }; S.ghostSrc = 'last'; }
       else { S.ghost = null; S.ghostSrc = 'ct'; }
     }
+    // 目標ペースは明示設定なので他ソースより優先。時計だけで決まるので復元時もそのまま効く
+    if (S.paceGoal > 0) { S.ghost = null; S.ghostSrc = 'pace'; }
     S.lastMoveMs = nowMs(); S.moving = true;
     S.sun = CORE.sunTimes(S.route.pts[0][0], S.route.pts[0][1], nowDate());
     Geo.start(onFix, onGeoErr);
@@ -473,7 +476,7 @@
       var lapSec = (t - S.lapStartMs) / 1000;
       if (lapSec > 120) {                                  // 誤発火防止
         S.lapTimes.push(Math.round(lapSec));
-        if (S.lap === 1 && S.track.length > 4) {
+        if (S.lap === 1 && S.track.length > 4 && S.ghostSrc !== 'pace') {   // 明示設定の目標ペースは奪わない
           S.ghost = { samples: S.track.map(function (s) { return [s[0], s[3] || 0]; }) };
           S.ghostSrc = 'lap1';
           wpFlash('Lap ' + S.lap + ' ' + CORE.fmtDur(lapSec / 60) + ' — 1周目の自分が背中に');
@@ -592,8 +595,13 @@
     S.finished.laps = S.lapTimes.slice();
     S.finished.summits = S.summitLog.slice();
     S.finished.peakTotal = Object.keys(lsGet('thud.peaks') || {}).length;
-    var gd = CORE.ctAt(S.route, S.maxAlong);
-    S.finished.ghostDiff = (gd && gd > 10) ? (S.movingMin - gd) : null;
+    if (S.ghostSrc === 'pace' && S.paceGoal > 0 && !isLoopRoute()) {
+      S.finished.ghostDiff = elapsed - S.paceGoal;          // 目標ペースは経過時計そのものが基準
+      S.finished.ghostLbl = '目標ペース';
+    } else {
+      var gd = CORE.ctAt(S.route, S.maxAlong);
+      S.finished.ghostDiff = (gd && gd > 10) ? (S.movingMin - gd) : null;
+    }
     if (S.track.length > 8) {
       lsSet('thud.lastTrack.' + S.route.id, S.track.map(function (s) { return [s[0], s[3] || 0]; }));
     }
@@ -738,6 +746,24 @@
       return;
     }
     if (S.mode === 'ready') {
+      if (S.paceEdit != null) {                             // N8: 目標ペース層(↑で開く)
+        var rg = paceRange();
+        if (k === 'ArrowLeft' || k === 'ArrowRight') {
+          var nv = (S.paceEdit === 0)
+            ? (k === 'ArrowRight' ? rg[0] : 0)
+            : S.paceEdit + (k === 'ArrowRight' ? PACE_STEP : -PACE_STEP);
+          if (nv < rg[0]) nv = 0;                           // 下限より下は「設定しない」
+          if (nv > rg[1]) nv = rg[1];
+          S.paceEdit = nv; render(); return;
+        }
+        if (k === 'Enter') {
+          S.paceGoal = (S.paceEdit > 0) ? S.paceEdit : null;
+          if (S.paceGoal) { lsSet(paceKey(), S.paceGoal); wpFlash('目標 ' + CORE.fmtDur(S.paceGoal) + ' のゴーストを出します'); }
+          else { lsDel(paceKey()); wpFlash('目標ペースを解除しました'); }
+          S.paceEdit = null; render(); return;
+        }
+        S.paceEdit = null; render(); return;                // ↑↓/戻る = 変更を捨てて1つ戻る
+      }
       if (S.diag && k === 'Enter') {                        // 診断内ピンチ=自宅登録/削除(2度押し確認)
         var g0 = DIAG.raw || S.readyGeo;
         if (S.homeConfirm) {
@@ -747,7 +773,7 @@
         } else { S.homeConfirm = true; wpFlash(S.home ? 'もう一度ピンチで自宅を削除' : 'もう一度ピンチでここを自宅に'); }
         render(); return;
       }
-      if ((k === 'ArrowDown' || k === 'ArrowUp') && !S.diag) diagGeoLast = 0;  // 開いた瞬間に測位
+      if (k === 'ArrowDown' && !S.diag) diagGeoLast = 0;    // 診断を開いた瞬間に測位
       if (S.diag && (k === 'ArrowLeft' || k === 'ArrowRight')) {
         S.hmode = (S.hmode === 'inv') ? 'alpha' : 'inv';
         lsSet('thud.hmode', S.hmode); render(); return;
@@ -758,7 +784,11 @@
         S.startManual = true; S.startSuggested = false; render(); return;
       }
       if (k === 'Enter') { if (S.startFailed) startAnyway(false); else beginStart(false); }
-      if (k === 'ArrowDown' || k === 'ArrowUp') {
+      if (k === 'ArrowUp' && !S.diag) {                     // ↑ = 目標ペース層(↓の診断と対にする)
+        S.paceEdit = (S.paceGoal > 0) ? S.paceGoal : paceBase();
+        render(); return;
+      }
+      if (k === 'ArrowDown' || k === 'ArrowUp') {           // ↓=診断トグル / 診断中は↑でも閉じる
         S.diag = !S.diag;
         if (S.diag && DIAG.oriPerm === '-' && !SIM) {   // 未解決ならこのジェスチャーで再要求
           DIAG.retryN++; DIAG.reqMs = Date.now();
@@ -882,6 +912,7 @@
       S.route = CORE.rotateLoop(BUILT[idx], a.rot, rn || '合流点');
     }
     S.rotOff = a.rot || 0;
+    loadPaceGoal();
     S.startMs = a.startMs; S.movingMin = a.movingMin || 0; S.stopMin = a.stopMin || 0;
     S.along = a.along || 0; S.maxAlong = a.maxAlong || 0; S.cursor = a.cursor;
     S.wpPassed = a.wpPassed || {}; S.track = a.track || []; S.emaKmh = a.emaKmh || 0;
@@ -891,6 +922,7 @@
   }
   function toReady() {
     S.route = BUILT[S.routeIdx];
+    loadPaceGoal();                                        // 目標ペースはルート単位で永続
     S.sun = CORE.sunTimes(S.route.pts[0][0], S.route.pts[0][1], nowDate());
     if (SIM) { Geo.sim.along = 0; Geo.sim.offset = 0; }
     // 周回コースはスタートWPを選べる(GPSで最寄りをサジェスト)
@@ -1165,20 +1197,28 @@
     var r = S.route;
     var set = S.sun && S.sun.sunset ? CORE.fmtClock(S.sun.sunset) : '--:--';
     return '<div class="abs ctr" style="top:40px"><span class="route-name">' + esc(r.name) + '</span></div>' +
-      '<div class="abs" style="top:150px;padding:0 110px"><div class="frame">' +
-      '<div class="stat-row">距離　　 ' + CORE.fmtKm(r.total) + '</div>' +
-      '<div class="stat-row">獲得標高 +' + Math.round(r.gainTotal) + 'm</div>' +
-      '<div class="stat-row">標準CT　 ' + CORE.fmtDur(r.ctTotal) + '</div>' +
-      '<div class="stat-row">日没　　 ' + set + '</div></div></div>' +
-      startSelHtml() +
+      (S.paceEdit != null ? '' :                            // 目標ペース層とは同じ帯を使うので排他
+        '<div class="abs" style="top:150px;padding:0 110px"><div class="frame">' +
+        '<div class="stat-row">距離　　 ' + CORE.fmtKm(r.total) + '</div>' +
+        '<div class="stat-row">獲得標高 +' + Math.round(r.gainTotal) + 'm</div>' +
+        '<div class="stat-row">標準CT　 ' + CORE.fmtDur(r.ctTotal) + '</div>' +
+        '<div class="stat-row">日没　　 ' + set + '</div></div></div>') +
+      startSelHtml() + paceHtml() +
       (S.perm ? '<div class="abs ctr" style="top:420px;padding:0 40px"><span class="sub acc2">' + esc(S.perm) + '</span></div>' : '') +
-      '<div class="abs ctr" style="bottom:28px"><span class="hint ' + (S.starting ? 'dim' : 'main-c') + '">' +
-      (S.starting ? '確認中…' : (S.startFailed ? 'ピンチでGPSなし開始' : 'ピンチで計測開始')) +
-      '</span><span class="hint dim">　戻る: 選択へ</span></div>' +
+      '<div class="abs ctr" style="bottom:28px">' + (S.paceEdit != null
+        ? '<span class="hint main-c">ピンチで確定</span><span class="hint dim">　◂ ▸ で5分きざみ　戻る: やめる</span>'
+        : '<span class="hint ' + (S.starting ? 'dim' : 'main-c') + '">' +
+          (S.starting ? '確認中…' : (S.startFailed ? 'ピンチでGPSなし開始' : 'ピンチで計測開始')) +
+          '</span><span class="hint dim">　戻る: 選択へ</span>') + '</div>' +
       '<div class="abs ctr" style="bottom:56px"><span class="sub dim">' +
-      (S.diag ? '' :
+      (S.diag || S.paceEdit != null ? '' :
         (S.home ? '↓ センサー診断(ピンチで自宅削除)' + (SIM ? '' : ' ／ PC検証は ?sim=1')
                 : '<span class="main-c">↓ ここを自宅にする</span> ／ センサー診断' + (SIM ? '' : ' ／ ?sim=1'))) +
+      '</span></div>' +
+      '<div class="abs ctr" style="bottom:82px"><span class="sub dim">' +
+      (S.diag || S.paceEdit != null ? '' :
+        '<span class="' + (S.paceGoal > 0 ? 'acc2' : 'dim') + '">↑ 目標ペース' +
+        (S.paceGoal > 0 ? ' ' + CORE.fmtDur(S.paceGoal) + ' 設定中' : '(未設定)') + '</span>') +
       '</span></div>' + diagHtml();
   }
   function diagHtml() {
@@ -1214,7 +1254,7 @@
       '</div></div>';
   }
   function startSelHtml() {
-    if (!S.startCands || S.diag) return '';
+    if (!S.startCands || S.diag || S.paceEdit != null) return '';
     var w = S.startCands[S.startIdx];
     var d = candDist(S.startIdx);
     var sub = S.startSuggested ? '現在地の最寄り' + (d != null ? ' (' + CORE.fmtKm(d) + ')' : '')
@@ -1332,10 +1372,47 @@
       var ss2 = S.ghost.samples;
       for (var j = 0; j < ss2.length; j++) { if (ss2[j][0] >= el2) { g = ss2[j][1]; break; } }
       if (g == null) g = ss2.length ? ss2[ss2.length - 1][1] : null;
+    } else if (S.ghostSrc === 'pace' && S.paceGoal > 0) {                // N8: 等速の仮想走者
+      var t0 = isLoopRoute() ? (S.lapStartMs || S.startMs) : S.startMs;  // 周回は1周ごとに走り直す
+      var el3 = (nowMs() - t0) / 60000;
+      g = Math.max(0, Math.min(S.route.total, S.route.total * (el3 / S.paceGoal)));
     } else {                                                            // 標準CT歩行者
       g = CORE.ctInverse(S.route, (nowMs() - S.startMs) / 60000);
     }
     return g;
+  }
+
+  /* ---- N8: 目標ペース(等速仮想走者)の設定 ---- */
+  var PACE_STEP = 5;                                       // 分。長押しが使えないので粗めに刻む
+  function paceKey() { return 'thud.paceGoal.' + (S.route ? S.route.id : '-'); }
+  function paceBase() {                                    // 基準=標準CT(無ければ4km/h換算)
+    var r = S.route;
+    if (!r) return 60;
+    var b = (r.ctTotal && r.ctTotal > 10) ? r.ctTotal : (r.total / 4000) * 60;
+    return Math.max(PACE_STEP, Math.round(b / PACE_STEP) * PACE_STEP);
+  }
+  function paceRange() { var b = paceBase();               // 下限より下は「設定しない」(=0)
+    return [Math.max(PACE_STEP, Math.round(b * 0.4 / PACE_STEP) * PACE_STEP),
+            Math.round(b * 1.6 / PACE_STEP) * PACE_STEP]; }
+  function loadPaceGoal() {
+    var v = lsGet(paceKey());
+    S.paceGoal = (typeof v === 'number' && v > 0) ? v : null;
+    S.paceEdit = null;
+  }
+  function paceHtml() {
+    if (S.paceEdit == null) return '';
+    var base = paceBase(), off = (S.paceEdit === 0);
+    var kmh = off ? 0 : (S.route.total / 1000) / (S.paceEdit / 60);
+    var vs = (S.paceEdit === base) ? '標準CTと同じ'
+           : '標準CT ' + CORE.fmtDur(base) + ' 比 ' + CORE.fmtDiff(S.paceEdit - base);
+    return '<div class="abs" style="top:170px;padding:0 70px"><div class="frame ctr">' +
+      '<div class="sub dim">' + (isLoopRoute() ? '1周の目標タイム' : '目標タイム') + '(等速の仮想走者)</div>' +
+      '<div class="stat-row"><span class="dim">◂ </span><span class="' + (off ? 'dim' : 'main-c') + '">' +
+      (off ? '設定しない' : CORE.fmtDur(S.paceEdit)) + '</span><span class="dim"> ▸</span></div>' +
+      '<div class="sub dim">' + (off
+        ? 'ゴーストは前回の自分／標準CT'
+        : vs + '　平均 ' + kmh.toFixed(1) + 'km/h') +
+      '</div></div></div>';
   }
   function panelProfile() {   // 断面図: 数字を物語に(v2 N4)
     var r = S.route, W = 520, H = 260, pad = 10;
@@ -1372,9 +1449,16 @@
       svg += '<circle cx="' + mq[0] + '" cy="' + mq[1] + '" r="7" fill="#ffd83b"/>';
     }
     svg += '</svg>';
-    var ct = CORE.ctAt(r, S.along);
-    var diff = (ct != null && ct > 5) ? CORE.fmtDiff(((nowMs() - S.startMs) / 60000) - ct) : '--';
-    var gLbl = { ct: '標準CT', lap1: '1周目の自分', last: '前回の自分' }[S.ghostSrc] || '標準CT';
+    var diff;
+    if (S.ghostSrc === 'pace' && S.paceGoal > 0) {          // 目標ペースは等速なので通過予定時刻と直接比べる
+      var pt0 = isLoopRoute() ? (S.lapStartMs || S.startMs) : S.startMs;
+      var due = S.paceGoal * (S.along / r.total);
+      diff = S.proj ? CORE.fmtDiff((nowMs() - pt0) / 60000 - due) : '--';
+    } else {
+      var ct = CORE.ctAt(r, S.along);
+      diff = (ct != null && ct > 5) ? CORE.fmtDiff(((nowMs() - S.startMs) / 60000) - ct) : '--';
+    }
+    var gLbl = { ct: '標準CT', lap1: '1周目の自分', last: '前回の自分', pace: '目標ペース' }[S.ghostSrc] || '標準CT';
     return '<div class="abs ctr" style="top:60px">' + svg + '</div>' +
       '<div class="abs ctr" style="top:340px"><span class="eta1">' +
       Math.round(S.proj ? r.pts[CORE.routePointAt(r, S.along).seg][2] : r.pts[0][2]) + 'm</span>' +
@@ -1590,7 +1674,7 @@
       '<div class="stat-row">標準CT比 ' + (f.ctRatio ? f.ctRatio.toFixed(2) : '--') + '</div>' +
       (f.laps && f.laps.length ? '<div class="stat-row">Lap ' + f.laps.length + '回</div>' : '') +
       (f.summits && f.summits.length ? '<div class="stat-row acc2">登頂 ' + esc(f.summits.join('・')) + ' (通算' + f.peakTotal + '座)</div>' : '') +
-      (f.ghostDiff != null ? '<div class="stat-row">ゴースト比 ' + CORE.fmtDiff(f.ghostDiff) + '</div>' : '') +
+      (f.ghostDiff != null ? '<div class="stat-row">' + (f.ghostLbl || 'ゴースト') + '比 ' + CORE.fmtDiff(f.ghostDiff) + '</div>' : '') +
       '</div></div>' +
       '<div class="abs ctr" style="bottom:30px"><span class="hint main-c">ピンチ/戻る で終了</span></div>';
   }
@@ -1627,5 +1711,5 @@
   else boot();
 
   // テスト用フック(実機では未使用)
-  if (typeof window !== 'undefined') window.__THUD = { S: S, Geo: Geo, render: render, nowMs: nowMs, checkLapAndSegs: checkLapAndSegs };
+  if (typeof window !== 'undefined') window.__THUD = { S: S, Geo: Geo, render: render, nowMs: nowMs, checkLapAndSegs: checkLapAndSegs, ghostAlongNow: ghostAlongNow };
 })();
