@@ -706,12 +706,12 @@ def bake_vec(pts, ways, margin, tol, budget_kb):
         probe = [line[0], line[len(line) // 2], line[-1]]
         if min(min_dist_to_route((q[0], q[1], 0), xy_pts, lat0) for q in probe) > margin * 2:
             continue
-        if min(min_dist_to_route((q[0], q[1], 0), xy_pts, lat0) for q in line) > margin:
-            continue
-        if kind == 'road' and cls <= 1 and margin > 250:
-            # 細街路・歩道は近傍だけ(都市部で本数が爆発する)
-            if min(min_dist_to_route((q[0], q[1], 0), xy_pts, lat0) for q in line) > 250:
-                continue
+        dmin = min(min_dist_to_route((q[0], q[1], 0), xy_pts, lat0) for q in line)
+        # クラスごとに採用距離を変える。都市部で歩道・細街路まで全部拾うと
+        # 加算ディスプレイでは線が塊になって地図として読めなくなる(実機前提の間引き)
+        keep = margin if cls >= 3 else (min(margin, 200.0) if cls == 2 else min(margin, 80.0))
+        if kind != 'road': keep = margin
+        if dmin > keep: continue
         simp = simplify([(q[0], q[1], 0) for q in line], tol)
         if len(simp) >= 2: groups[kind].append((cls, simp))
     # サイズ予算: 超えたら優先度の低いものから落とす

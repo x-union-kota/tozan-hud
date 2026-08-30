@@ -1603,12 +1603,49 @@
       // ここを空けるのが「文字と線を混ぜない」唯一正しいやり方(縁取りは光量を増やすだけ)
       cx.clearRect(0, H - 32, 190, 32);          // スケールバー
       cx.clearRect(W - 56, 0, 56, 30);           // N↑
-      cx.clearRect(W - 220, H - 22, 220, 22);    // クレジット
+      cx.clearRect(W - 320, H - 22, 320, 22);    // クレジット
       terrCache[key].step = drew ? step : null;
       terrCache[key].url = drew ? cv.toDataURL() : null;
       terrCache[key].fail = !drew;                       // 平坦すぎて線が出ない場合も線図に縮退
       render();
     } catch (e) { terrCache[key].fail = true; render(); }
+  }
+
+  /* ---- 街中の地図(N2改: 焼き込み済みOSM道路ベクタ) ----
+     平坦地はDEMを良くしても無地。ラスタ地図の反転は細線が灰色のモヤになって
+     加算ディスプレイで死ぬので、線を自前で引く。等高線と同じく非活性色1色にして、
+     道路クラスは太さ・鉄道と水域は線種で区別する(色数を増やさない)。 */
+  var vecCache = {};
+  function drawVec(r, geo, W, H) {
+    try {
+      var cv = document.createElement('canvas'); cv.width = W; cv.height = H;
+      var cx = cv.getContext('2d');
+      if (!cx) return null;
+      cx.strokeStyle = '#6b675c'; cx.lineCap = 'round'; cx.lineJoin = 'round';
+      var LY = [['water', 1, [1, 4]], ['rail', 1.5, [8, 5]], ['road', 0, null]];
+      var drew = 0;
+      for (var li = 0; li < LY.length; li++) {
+        var g = r.vec[LY[li][0]];
+        if (!g) continue;
+        for (var i = 0; i < g.length; i++) {
+          var cls = g[i][0], line = g[i][1];
+          cx.lineWidth = LY[li][1] || (cls >= 4 ? 2.5 : (cls >= 3 ? 2 : (cls >= 2 ? 1.4 : 1)));
+          if (cx.setLineDash) cx.setLineDash(LY[li][2] || []);
+          cx.beginPath();
+          for (var j = 0; j < line.length; j++) {
+            var q = geo.px(line[j][1], line[j][0]);
+            if (j === 0) cx.moveTo(+q[0], +q[1]); else cx.lineTo(+q[0], +q[1]);
+          }
+          cx.stroke(); drew++;
+        }
+      }
+      if (cx.setLineDash) cx.setLineDash([]);
+      if (!drew) return null;
+      cx.clearRect(0, H - 32, 190, 32);          // スケールバー
+      cx.clearRect(W - 56, 0, 56, 30);           // N↑
+      cx.clearRect(W - 320, H - 22, 320, 22);    // クレジット
+      return cv.toDataURL();
+    } catch (e) { return null; }
   }
 
   // ルート形状図: 地図タイルは出さない(非ゴール)が、線と点の俯瞰なら軽量で読める。
@@ -1686,14 +1723,27 @@
                  unpx: function (x, y) {   // px() の逆(アフィンなので解析的に戻せる)
                    return [(((x - ox) / sc) + minx) / klon, ((((H - y) - oy) / sc) + miny) / klat];
                  } };
-    if (!terrCache[tKey]) buildTerrain(tKey, geoM, W, H);
-    var terr = terrCache[tKey];
-    var under = (terr && terr.url)
-      ? '<img src="' + terr.url + '" width="' + W + '" height="' + H + '" style="position:absolute;left:0;top:0">'
+    // 街中(urban)で道路ベクタを持っているなら、それが既定の地図。等高線は取りに行かない
+    var useVec = !!(r.vec && r.domain === 'urban');
+    var under = '', credit;
+    if (useVec) {
+      if (!(tKey in vecCache)) vecCache[tKey] = drawVec(r, geoM, W, H);
+      credit = vecCache[tKey] ? '地図: © OpenStreetMap contributors' : '線図(地図未取得)';
+      if (vecCache[tKey]) under = vecCache[tKey];
+    } else {
+      if (!terrCache[tKey]) buildTerrain(tKey, geoM, W, H);
+      var terr = terrCache[tKey];
+      if (terr && terr.url) {
+        under = terr.url;
+        credit = '地図: 地理院タイル ・ 等高線' + terr.step + 'm' +
+                 (r.vec ? ' / © OpenStreetMap contributors' : '');
+      } else {
+        credit = '線図(地形未取得)';
+      }
+    }
+    under = under
+      ? '<img src="' + under + '" width="' + W + '" height="' + H + '" style="position:absolute;left:0;top:0">'
       : '';
-    var credit = (terr && terr.url)
-      ? '地図: 地理院タイル ・ 等高線' + terr.step + 'm'
-      : '線図(地形未取得)';
     return '<div class="abs ctr" style="top:44px"><div style="position:relative;width:' + W + 'px;height:' + H + 'px;display:inline-block">' + under +
       '<div style="position:absolute;left:0;top:0">' + svg + '</div>' +
       '<div style="position:absolute;right:4px;bottom:2px;font-size:14px;color:#6b675c">' + credit + '</div></div></div>' +

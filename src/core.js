@@ -71,8 +71,21 @@ var CORE = (function () {
       total: cum[cum.length - 1], gainTotal: gcum[gcum.length - 1],
       wps: r.wps || [], cts: r.cts || null,
       ctTotal: r.cts ? r.cts[r.cts.length - 1][1] : null,
-      reg: r.reg || [], dec: r.dec || 7.5, domain: r.domain || 'mountain', segs: r.segs || []
+      reg: r.reg || [], dec: r.dec || 7.5, domain: r.domain || 'mountain', segs: r.segs || [],
+      vec: decodeVec(r.vec)
     };
+  }
+  // 地図パネル用ベクタ {road|rail|water: [[クラス, 圧縮poly], ...]} を一度だけ展開する
+  function decodeVec(v) {
+    if (!v) return null;
+    var out = {}, any = false;
+    for (var k in v) {
+      if (!Object.prototype.hasOwnProperty.call(v, k)) continue;
+      var g = [];
+      for (var i = 0; i < v[k].length; i++) g.push([v[k][i][0], decodePoly(v[k][i][1])]);
+      if (g.length) { out[k] = g; any = true; }
+    }
+    return any ? out : null;
   }
 
   /* ---------- 周回の原点付け替え ---------- */
@@ -147,7 +160,8 @@ var CORE = (function () {
       pts: np, cum: ncum, gcum: ngcum,
       total: ntotal, gainTotal: ngcum[ngcum.length - 1],
       wps: nwps, cts: ncts, ctTotal: route.ctTotal, rotatedFrom: offAlong,
-      reg: route.reg, dec: route.dec, domain: route.domain, segs: nsegs
+      reg: route.reg, dec: route.dec, domain: route.domain, segs: nsegs,
+      vec: route.vec          // 地図の絵は起点をどこにしても同じもの(回転しない)
     };
   }
 

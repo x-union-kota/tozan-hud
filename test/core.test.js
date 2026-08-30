@@ -253,5 +253,38 @@ console.log('[dem]');
   }
 }
 
+/* 10. 地図パネル用ベクタ(v3.2 優先2) */
+console.log('[vec]');
+{
+  const line = (pts) => {                       // テスト用に polyline を作る
+    let out = '', pla = 0, plo = 0;
+    const enc = (v) => { v = v < 0 ? ~(v << 1) : (v << 1); let s = '';
+      while (v >= 0x20) { s += String.fromCharCode((0x20 | (v & 0x1f)) + 63); v >>= 5; }
+      return s + String.fromCharCode(v + 63); };
+    for (const [la, lo] of pts) {
+      const a2 = Math.round(la * 1e5), b2 = Math.round(lo * 1e5);
+      out += enc(a2 - pla) + enc(b2 - plo); pla = a2; plo = b2;
+    }
+    return out;
+  };
+  const poly = line([[35.0, 139.0], [35.001, 139.002]]);
+  const base = { id: 'v', name: 'V', poly: poly, ele: CORE.decodeEle ? '??' : '??' };
+
+  const r0 = CORE.buildRoute({ id: 'a', name: 'A', poly: poly, ele: '??' });
+  ok(r0.vec === null, 'route without vec decodes to null (not an empty object)');
+
+  const r1 = CORE.buildRoute({ id: 'b', name: 'B', poly: poly, ele: '??', domain: 'urban',
+    vec: { road: [[4, poly], [1, poly]], rail: [[2, poly]], water: [[1, poly]] } });
+  ok(r1.vec && r1.vec.road.length === 2 && r1.vec.rail.length === 1 && r1.vec.water.length === 1,
+     'vec groups survive buildRoute');
+  ok(r1.vec.road[0][0] === 4, 'road class is kept alongside the geometry');
+  near(r1.vec.road[0][1][0][0], 35.0, 1e-6, 'vec polyline decodes to lat/lon');
+  near(r1.vec.road[0][1][1][1], 139.002, 1e-6, 'vec polyline second point decodes');
+  ok(r1.vec.road[0][1].length === 2, 'vec polyline keeps every point');
+
+  const empty = CORE.buildRoute({ id: 'c', name: 'C', poly: poly, ele: '??', vec: { road: [] } });
+  ok(empty.vec === null, 'a vec with no usable line decodes to null');
+}
+
 console.log(`\n${count - fail}/${count} passed`);
 process.exit(fail ? 1 : 0);

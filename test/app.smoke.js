@@ -167,6 +167,34 @@ const sleep = (ms) => new Promise(r => setTimeout(r, ms));
   key('ArrowDown');                   // 診断を閉じる
   ok(/ピンチで自宅削除/.test(text()), 'ready hint switches to deletion once registered');
 
+  // ---- v3.2: 街中の地図(焼き込みOSM道路ベクタ) ----
+  {
+    const S4 = T().S, r = S4.route;
+    const enc = (pts) => {                      // テスト用 polyline エンコーダ
+      let out = '', pla = 0, plo = 0;
+      const e = (v) => { v = v < 0 ? ~(v << 1) : (v << 1); let s = '';
+        while (v >= 0x20) { s += String.fromCharCode((0x20 | (v & 0x1f)) + 63); v >>= 5; }
+        return s + String.fromCharCode(v + 63); };
+      for (const [la, lo] of pts) { const a = Math.round(la * 1e5), b = Math.round(lo * 1e5);
+        out += e(a - pla) + e(b - plo); pla = a; plo = b; }
+      return out;
+    };
+    const near = r.pts[0], far = r.pts[Math.min(5, r.pts.length - 1)];
+    const poly = enc([[near[0], near[1]], [far[0], far[1]]]);
+    r.vec = window.CORE.buildRoute({ id: 'x', name: 'x', poly: poly, ele: '?',
+      vec: { road: [[4, poly]], rail: [[2, poly]], water: [[1, poly]] } }).vec;
+    r.domain = 'urban';
+    const before = S4.panel, beforeMode = S4.mode;
+    S4.mode = 'main'; S4.panel = 2; T().render();   // 地形図パネル
+    const txt = text();
+    ok(r.vec && r.vec.road.length === 1, 'route carries a decoded vec');
+    ok(/地図: © OpenStreetMap contributors|線図\(地図未取得\)/.test(txt),
+       'urban route with vec renders the OSM map layer (or degrades to the line diagram)');
+    ok(!/地理院タイル/.test(txt), 'vec route does not also claim the GSI terrain credit');
+    r.vec = null; r.domain = 'mountain'; S4.panel = before; S4.mode = beforeMode; T().render();
+    ok(!/OpenStreetMap/.test(text()), 'credit reverts once the vec is gone');
+  }
+
   // ---- N8: 目標ペース(等速仮想走者) ----
   {
     ok(/↑ 目標ペース/.test(text()) && /未設定/.test(text()), 'ready advertises an unset pace goal');
