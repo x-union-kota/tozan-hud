@@ -72,7 +72,7 @@ body {
 <body>
 <div id="app"></div>
 <script>
-var BUILD='0827-1508J';
+var BUILD='0830-0555J';
 // 自動生成: tools/make_field_demo.py
 // ※[概形]ルートは主要地点を結んだ近似。実山行には gpx2route.py で実GPXを変換して差し替えること
 var ROUTES = [{"id":"harumi","name":"晴海フラッグ周回 [概形]","dist":2011,"gain":1,"poly":"_kqxEodbtYiG_HeEgDwH_IgB{Bq@qAM{@Be@Fg@`@qAp@kAr@aAp@w@x@q@`Ae@`@KfAIbADz@LxBr@zA`AzFlFr@~@z@jBf@pBRjCA`B]|EyEbK","ele":"E???A??????????@?????????????","wps":[{"d":0,"n":"晴海ふ頭公園","t":"start"},{"d":684,"n":"北端折返し","t":"wp"},{"d":1090,"n":"晴海緑道公園","t":"wp"},{"d":2011,"n":"下山口","t":"goal"}],"cts":[[0,0],[500,8],[1000,15],[1500,23],[2000,30],[2011,30]],"demo":true},{"id":"takao","name":"高尾山 1号路 往復 [概形]","dist":5551,"gain":409,"poly":"ulnxEuc`qY`AnDV~AF~AKnAUhAa@jAi@fAuBfDmC~GYlAEh@Aj@Dn@d@vAxCbGpBlDd@fAbB`GtApDlApD`CfFpApEzDdL`FlJdDtEtBfDjCnD`@x@`@hAl@~Bb@xBJnABlACj@QxAoAxFnAyFPyABk@CmAKoAc@yBm@_Ca@iAa@y@kCoDuBgDeDuEaFmJ{DeLqAqEaCgFmAqDuAqDcBaGe@gAqBmDyCcGe@wAEo@@k@Di@XmAlC_HtBgDh@gA`@kATiAJoAG_BW_BaAoD","ele":"{JGGMSU[[mA}B]MKKQa@OG]WSWMSOOMOEIMOKKGOu@t@NFJJNLHDNLNNRLVRV\\FN`@PJJL\\|BlAZZTRLFF","wps":[{"d":0,"n":"高尾山口駅","t":"start"},{"d":680,"n":"金比羅台","t":"wp"},{"d":1452,"n":"ケーブル高尾山駅","t":"hut"},{"d":2360,"n":"薬王院","t":"junction"},{"d":2775,"n":"高尾山山頂","t":"peak"},{"d":3191,"n":"薬王院","t":"junction"},{"d":4099,"n":"ケーブル高尾山駅","t":"hut"},{"d":4871,"n":"金比羅台","t":"wp"},{"d":5551,"n":"下山口","t":"goal"}],"cts":[[0,0],[500,42],[1000,63],[1500,82],[2000,96],[2500,109],[3000,133],[3500,146],[4000,156],[4500,168],[5000,192],[5500,210],[5551,210]],"demo":true},{"id":"fuji","name":"富士山 吉田ルート [概形]","dist":5065,"gain":1410,"poly":"{k`wEijwmYMo@Ck@FYXKd@DbBXl@@`@MRa@Du@?aCFy@Pi@`@Yl@GjBDl@Eb@URg@Dw@AeCBw@Ne@ZQfEPb@MV_@Hs@FyBHs@Ra@^Mj@DbB`@j@F^IR]Hs@@}BFw@Pg@^Qh@?bBTl@@`@MTa@Hu@D_CHu@Rc@^Mj@DpCp@`@CT[Ps@RwDRe@^Ql@@hCj@\\CRWf@iB\\y@f@k@^S\\H\\b@hArCZV^Ad@UvAcAj@Sd@?\\XXn@h@|BTr@\\\\b@Dh@Q`CyA`@C^TXl@f@rBTl@\\Zb@@h@Q|A_Aj@Sb@?ZXRn@h@nDT`@\\Ff@KvAq@n@Id@HZ^Pr@P`CLt@Tb@`@Jj@GdBg@l@Ib@DV\\Hn@FxBJv@Rd@`@Pj@?hBSj@?`@PPb@Dt@CbCDx@Nf@^Rl@?tCc@d@HV^Lp@P|BJr@T^^Hj@IdBi@n@Eb@HR^Fn@?xBHt@Vd@d@Jn@GtA}@h@Uf@?`@V\\n@z@zB\\n@`@Zb@Ad@W`BuB","ele":"aoCAAAAAEACACECCCAGCCACGACCKACACAACAECECEMGIIIWMKMO[OOOOm@OOSy@USS_AUUm@UWOOMq@OQOc@OQQQa@QOQOq@OQQc@QQQQc@QOQQq@OOO_@QQQQa@OOQO]OOOQ_@SSSUg@USSSg@SQQSw@QQOa@QMOO_@OMMKYMMOO[QOQQc@QOOM_@","wps":[{"d":0,"n":"五合目","t":"start"},{"d":1191,"n":"六合目","t":"wp"},{"d":2065,"n":"七合目","t":"hut"},{"d":3242,"n":"八合目","t":"hut"},{"d":4082,"n":"本八合目 [下山道分岐]","t":"escape"},{"d":4676,"n":"九合目","t":"wp"},{"d":5065,"n":"吉田口頂上","t":"goal"}],"cts":[[0,0],[500,14],[1000,29],[1500,55],[2000,105],[2500,145],[3000,188],[3500,232],[4000,276],[4500,317],[5000,358],[5065,358]],"demo":true}];
@@ -395,7 +395,7 @@ if (typeof module !== 'undefined') module.exports = CORE;
     cursor: null, along: 0, maxAlong: 0, proj: null,
     emaKmh: 0, moving: true, lastMoveMs: 0,
     dev: null, suppressUntil: 0, graceUntil: 0,
-    heading: null, headingReal: 0, hmode: (lsGet('thud.hmode') || 'alpha'),
+    heading: null, headingReal: 0, headingSettled: false, hmode: (lsGet('thud.hmode') || 'alpha'),
     sun: null, sunNotice: false,
     wx: null, wxTriedMs: 0,
     track: [], lastTrackMs: 0,
@@ -447,7 +447,7 @@ if (typeof module !== 'undefined') module.exports = CORE;
       // 方位: 進行方向+ゆらぎ
       var ah2 = CORE.routePointAt(S.route, Math.min(S.route.total, sim.along + 40));
       S.heading = (CORE.bearing([p.la, p.lo], [ah2.la, ah2.lo]) + gauss() * 8 + 360) % 360;
-      S.headingReal = Date.now();
+      S.headingReal = Date.now(); S.headingSettled = true;
       cb({ la: pos[0], lo: pos[1], acc: acc, t: nowMs() });
     }
 
@@ -525,6 +525,7 @@ if (typeof module !== 'undefined') module.exports = CORE;
     });
   }
   var oriAttached = false, lastAbsMs = 0;
+  var hsx = 0, hsy = 0, hInit = false, firstOriMs = 0, unstableUntil = 0;
   function oriHandler(isAbs) {
     return function (e) {
       if (isAbs) DIAG.absN++; else DIAG.oriN++;
@@ -540,7 +541,17 @@ if (typeof module !== 'undefined') module.exports = CORE;
       var t = Date.now();
       if (isAbs) lastAbsMs = t;
       else if (t - lastAbsMs < 3000) return;               // absoluteが生きていればそちらを優先
-      S.heading = h; S.headingReal = t; scheduleArrow();
+      // 起動直後はセンサー融合が収束しておらず数秒間デタラメな値が出る。
+      // 円形EMAで平滑し、生値と平滑値の乖離が続く間は「較正中」として矢印を出さない
+      if (!firstOriMs) firstOriMs = t;
+      var rad = h * Math.PI / 180, k = 0.35;
+      if (!hInit) { hsx = Math.sin(rad); hsy = Math.cos(rad); hInit = true; }
+      else { hsx = k * Math.sin(rad) + (1 - k) * hsx; hsy = k * Math.cos(rad) + (1 - k) * hsy; }
+      var sm = (Math.atan2(hsx, hsy) * 180 / Math.PI + 360) % 360;
+      var diff = Math.abs(((h - sm + 540) % 360) - 180);
+      if (diff > 25) unstableUntil = t + 1200;
+      S.headingSettled = (t - firstOriMs > 2000) && (t > unstableUntil);
+      S.heading = sm; S.headingReal = t; scheduleArrow();
     };
   }
   function startOrientation() {
@@ -562,6 +573,10 @@ if (typeof module !== 'undefined') module.exports = CORE;
     if (!S.sensorsReady) return;
     try { history.pushState({ s: s }, ''); } catch (e) {}
   }
+  function replaceScreen(s) {
+    if (!S.sensorsReady) return;
+    try { history.replaceState({ s: s }, ''); } catch (e) {}
+  }
 
   window.addEventListener('popstate', function (e) {
     var target = (e.state && e.state.s) || 'select';
@@ -579,6 +594,7 @@ if (typeof module !== 'undefined') module.exports = CORE;
     }
     if (target === 'ready') { S.mode = 'ready'; render(); return; }
     // select(root) へ
+    if (from === 'resume') { lsDel('thud.active'); S.resumeData = null; }   // 戻る=破棄
     resetToSelect(); render();
   });
 
@@ -608,8 +624,7 @@ if (typeof module !== 'undefined') module.exports = CORE;
     ensureGeo().then(function (fix) {
       clearStartWatchdog();
       S.perm = ''; S.starting = false;
-      if (restore) pushScreen('ready');                  // 再開: select→(ready)→main を積む
-      startTracking(fix, restore);
+      startTracking(fix, restore);                       // 再開時の履歴はdoResumeで置換済み
     }, function (err) {
       clearStartWatchdog();
       S.starting = false;
@@ -629,7 +644,6 @@ if (typeof module !== 'undefined') module.exports = CORE;
   function startAnyway(restore) {
     clearStartWatchdog();
     S.starting = false; S.startFailed = false; S.perm = '';
-    if (restore) pushScreen('ready');
     startTracking(null, restore);
   }
 
@@ -846,7 +860,7 @@ if (typeof module !== 'undefined') module.exports = CORE;
     }
     if (S.mode === 'resume') {
       if (k === 'Enter') { doResume(); }
-      if (k === 'Escape') { lsDel('thud.active'); S.resumeData = null; S.mode = 'select'; render(); }
+      if (k === 'Escape') goBack();          // 破棄はpopstate側で実施(実機のバックと同経路)
       return;
     }
     if (S.mode === 'select') {
@@ -873,8 +887,8 @@ if (typeof module !== 'undefined') module.exports = CORE;
       return;
     }
     if (S.mode === 'main') {
-      if (k === 'ArrowLeft')  { S.panel = (S.panel + 2) % 3; if (S.panel === 2 && !S.wx) fetchWeather(); render(); }
-      if (k === 'ArrowRight') { S.panel = (S.panel + 1) % 3; if (S.panel === 2 && !S.wx) fetchWeather(); render(); }
+      if (k === 'ArrowLeft')  { S.panel = (S.panel + 3) % 4; if (S.panel === 3 && !S.wx) fetchWeather(); render(); }
+      if (k === 'ArrowRight') { S.panel = (S.panel + 1) % 4; if (S.panel === 3 && !S.wx) fetchWeather(); render(); }
       if (k === 'ArrowUp')    { S.theme = 'y'; applyTheme(); }
       if (k === 'ArrowDown')  { S.theme = 'w'; applyTheme(); }
       if (k === 'Enter' && S.panel === 1) manualWp();   // WP確認は次WPパネル表示中のみ
@@ -950,11 +964,13 @@ if (typeof module !== 'undefined') module.exports = CORE;
     var a = lsGet('thud.active');
     if (a && Date.now() - a.savedAt < 24 * 3600000) {
       S.resumeData = a; S.mode = 'resume';
+      pushScreen('resume');                 // バックジェスチャーで戻れるよう履歴を1段積む
     } else { lsDel('thud.active'); S.mode = 'select'; }
     render();
   }
   function doResume() {
     var a = S.resumeData; if (!a) { S.mode = 'select'; render(); return; }
+    replaceScreen('ready'); S.mode = 'ready';           // 履歴: resume枠をreadyに置換
     var idx = 0;
     for (var i = 0; i < BUILT.length; i++) if (BUILT[i].id === a.routeId) idx = i;
     S.routeIdx = idx; S.route = BUILT[idx];
@@ -1007,9 +1023,11 @@ if (typeof module !== 'undefined') module.exports = CORE;
     var tgt = arrowTarget(); if (!tgt) return;
     var fresh = (Date.now() - S.headingReal) < 3000;
     var wrap = document.getElementById('arw-wrap');
-    if (!fresh || S.heading == null) {                    // F7: 誤方位を出すくらいなら消す
+    if (!fresh || S.heading == null || !S.headingSettled) {  // F7: 誤方位を出すくらいなら消す
       if (wrap) wrap.style.visibility = 'hidden';
-      var nl = document.getElementById('arw-na'); if (nl) nl.style.display = 'block';
+      var nl = document.getElementById('arw-na');
+      if (nl) { nl.style.display = 'block';
+        nl.textContent = (fresh && S.heading != null) ? '方位較正中… (頭をゆっくり左右に)' : '方位取得不可'; }
       return;
     }
     if (wrap) wrap.style.visibility = 'visible';
@@ -1119,11 +1137,12 @@ if (typeof module !== 'undefined') module.exports = CORE;
     return '<div class="abs z-head"><span class="dim">◂ </span>' + h + '<span class="dim"> ▸</span></div>';
   }
   function scrMain() {
-    var head = panelHeader(['進捗', '次WP', '天気']);
+    var head = panelHeader(['進捗', '次WP', 'ルート図', '天気']);
     var band = bandText();
     var bandHtml = '<div class="abs z-band ' + band.c + '">' + esc(band.s) + '</div>';
     if (S.panel === 0) return head + panelProgress() + bandHtml;
     if (S.panel === 1) return head + panelWp() + bandHtml;
+    if (S.panel === 2) return head + panelMap() + bandHtml;
     return head + panelWx() + bandHtml;
   }
   function panelProgress() {
@@ -1169,6 +1188,69 @@ if (typeof module !== 'undefined') module.exports = CORE;
       (el != null ? '<div class="eta2 dim" style="margin-top:14px">標高 約' + el + 'm</div>' : '') + esc2 + '</div>' +
       '<div class="abs ctr" style="top:470px"><span class="sub dim">ピンチ: 通過を手動確認</span></div>';
   }
+  // ルート形状図: 地図タイルは出さない(非ゴール)が、線と点の俯瞰なら軽量で読める。
+  // 現在地の色はGPS精度で変える(カシミール3D方式: 良→悪 黄/橙/赤、途絶は灰)
+  function panelMap() {
+    var r = S.route, pts = r.pts;
+    var lat0 = pts[0][0], klon = Math.cos(lat0 * Math.PI / 180) * 111320, klat = 110540;
+    var xs = [], ys = [], i;
+    for (i = 0; i < pts.length; i++) { xs.push(pts[i][1] * klon); ys.push(pts[i][0] * klat); }
+    var fx = null, fy = null, devd = S.dev ? S.dev.state.dist : 1e9;
+    if (S.lastFix && devd < 2500) { fx = S.lastFix.lo * klon; fy = S.lastFix.la * klat; xs.push(fx); ys.push(fy); }
+    var minx = Math.min.apply(0, xs), maxx = Math.max.apply(0, xs);
+    var miny = Math.min.apply(0, ys), maxy = Math.max.apply(0, ys);
+    var W = 460, H = 330, pad = 22;
+    var sc = Math.min((W - 2 * pad) / Math.max(maxx - minx, 1), (H - 2 * pad) / Math.max(maxy - miny, 1));
+    var ox = (W - (maxx - minx) * sc) / 2, oy = (H - (maxy - miny) * sc) / 2;
+    function px(lo, la) {
+      return [((lo * klon - minx) * sc + ox).toFixed(1), (H - ((la * klat - miny) * sc + oy)).toFixed(1)];
+    }
+    function path(arr) {
+      var d = '';
+      for (var j = 0; j < arr.length; j++) d += (j ? 'L' : 'M') + arr[j][0] + ' ' + arr[j][1];
+      return d;
+    }
+    // 通過済み/残りで色分け
+    var splitIdx = 0;
+    while (splitIdx + 1 < r.cum.length && r.cum[splitIdx + 1] < S.along) splitIdx++;
+    var pj = CORE.routePointAt(r, S.along);
+    var done = [], todo = [[px(pj.lo, pj.la)[0], px(pj.lo, pj.la)[1]]];
+    for (i = 0; i <= splitIdx; i++) done.push(px(pts[i][1], pts[i][0]));
+    done.push(px(pj.lo, pj.la));
+    for (i = splitIdx + 1; i < pts.length; i++) todo.push(px(pts[i][1], pts[i][0]));
+    var svg = '<svg viewBox="0 0 ' + W + ' ' + H + '" width="' + W + '" height="' + H + '">';
+    svg += '<path d="' + path(todo) + '" fill="none" stroke="#ffd83b" stroke-width="4" stroke-linejoin="round"/>';
+    if (done.length > 1) svg += '<path d="' + path(done) + '" fill="none" stroke="#6b675c" stroke-width="4" stroke-linejoin="round"/>';
+    for (i = 0; i < r.wps.length; i++) {
+      var w2 = r.wps[i], wp2 = CORE.routePointAt(r, w2.d), q = px(wp2.lo, wp2.la);
+      var passed = !!S.wpPassed[w2.d];
+      svg += '<circle cx="' + q[0] + '" cy="' + q[1] + '" r="6" fill="' + (passed ? '#6b675c' : '#f5f1e6') + '"/>';
+    }
+    if (fx != null) {
+      var acc = S.lastFix.acc || 99, age = (Date.now() - S.lastFixReal) / 1000;
+      var col = age > 30 ? '#6b675c' : (acc <= 25 ? '#ffd83b' : (acc <= 60 ? '#f5a11c' : '#ff5a60'));
+      var pq = px(S.lastFix.lo, S.lastFix.la);
+      svg += '<circle cx="' + pq[0] + '" cy="' + pq[1] + '" r="9" fill="none" stroke="' + col + '" stroke-width="3"/>';
+      svg += '<circle cx="' + pq[0] + '" cy="' + pq[1] + '" r="4" fill="' + col + '"/>';
+      if (S.headingSettled && S.heading != null && (Date.now() - S.headingReal) < 3000) {
+        var hr = (S.heading - 90) * Math.PI / 180;   // 画面は北上固定
+        svg += '<line x1="' + pq[0] + '" y1="' + pq[1] + '" x2="' + (+pq[0] + 18 * Math.cos(hr)).toFixed(1) +
+               '" y2="' + (+pq[1] + 18 * Math.sin(hr)).toFixed(1) + '" stroke="' + col + '" stroke-width="3"/>';
+      }
+    }
+    // スケールバーとN
+    var bar = 100; while (bar * sc < 60) bar *= 2; while (bar * sc > 160) bar /= 2;
+    svg += '<line x1="' + pad + '" y1="' + (H - 10) + '" x2="' + (pad + bar * sc).toFixed(0) + '" y2="' + (H - 10) + '" stroke="#6b675c" stroke-width="3"/>';
+    svg += '<text x="' + pad + '" y="' + (H - 16) + '" fill="#6b675c" font-size="16" font-family="inherit">' + (bar >= 1000 ? (bar / 1000) + 'km' : bar + 'm') + '</text>';
+    svg += '<text x="' + (W - 34) + '" y="24" fill="#6b675c" font-size="18" font-family="inherit">N↑</text>';
+    svg += '</svg>';
+    var cap = (devd < 2500)
+      ? '残 ' + CORE.fmtKm(Math.max(0, r.total - S.along)) + (S.lastFix && S.lastFix.acc != null ? '　±' + Math.round(S.lastFix.acc) + 'm' : '')
+      : 'ルート範囲外 (現在地は図の外)';
+    return '<div class="abs ctr" style="top:44px">' + svg + '</div>' +
+      '<div class="abs ctr" style="top:400px"><span class="ct1 dim">' + cap + '</span></div>';
+  }
+
   function panelWx() {
     if (!S.wx) return '<div class="abs ctr" style="top:200px"><span class="eta1 dim">天気データなし</span>' +
       '<div class="sub dim" style="margin-top:16px">登山口(オンライン時)に自動取得</div></div>';
