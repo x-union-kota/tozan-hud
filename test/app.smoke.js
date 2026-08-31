@@ -167,6 +167,72 @@ const sleep = (ms) => new Promise(r => setTimeout(r, ms));
   key('ArrowDown');                   // 診断を閉じる
   ok(/ピンチで自宅削除/.test(text()), 'ready hint switches to deletion once registered');
 
+  // ---- SPEC C-1/C-2/C-3 ----
+  {
+    const S6 = T().S, R = S6.route;
+    const keep = { mode: S6.mode, panel: S6.panel, tracking: S6.tracking, src: S6.ghostSrc,
+                   dom: R.domain, sun: S6.sun, proj: S6.proj };
+    S6.mode = 'main'; S6.panel = 0; S6.tracking = true;
+    S6.lastFix = S6.lastFix || { la: R.pts[0][0], lo: R.pts[0][1], acc: 8, t: Date.now() };
+    S6.lastFixReal = Date.now(); S6.proj = { dist: 5 }; S6.wpFlashUntil = 0;
+    S6.startMs = T().nowMs() - 20 * 60000; S6.along = R.total * 0.3;
+    S6.ghostSrc = 'ct'; S6.ghost = null;
+    R.domain = 'mountain';
+    S6.sun = { sunset: new Date(T().nowMs() + 3 * 3600000) };
+    T().render();
+    const withSun = text();
+    ok(/引き返し限界 \d+:\d+ \(あと-?\d+分\)/.test(withSun), 'C-1: the turnaround limit is shown with a clock and a countdown');
+
+    // SPECの受け入れは「山頂付近で『あと○分』が最小」。高尾山はピストンなので
+    // 山頂を過ぎると出口が近づき、限界時刻はまた遅くなる — それが正しい挙動
+    const grab = (t) => { const m = t.match(/引き返し限界 (\d+):(\d+)/); return m ? +m[1] * 60 + +m[2] : null; };
+    const at = (f) => { S6.along = R.total * f; T().render(); return grab(text()); };
+    const a10 = at(0.1), a50 = at(0.5), a90 = at(0.9);
+    ok(a10 != null && a50 != null && a90 != null, 'C-1: the limit is computable along the whole route');
+    ok(a50 < a10, `C-1: climbing towards the summit brings the limit forward (${a10} → ${a50})`);
+    ok(a90 > a50, `C-1: past the summit the exit is nearer again, so it relaxes (${a50} → ${a90})`);
+
+    // ゲート: 日没が取れなければ出さない / urbanでは出さない
+    S6.sun = null; T().render();
+    ok(!/引き返し限界/.test(text()), 'C-1: no sunset, no line (honesty gate)');
+    S6.sun = { sunset: new Date(T().nowMs() + 3 * 3600000) };
+    R.domain = 'urban'; T().render();
+    ok(!/引き返し限界/.test(text()), 'C-1: urban routes do not show it');
+    R.domain = 'mountain';
+
+    // C-2: ゴースト後方の文字ではなく時間差バーが出る
+    S6.along = R.total * 0.3; S6.ghostBehind = 40; T().render();
+    const dtxt = text();
+    ok(!/ゴースト後方/.test(dtxt), 'C-2: the "ghost 40m behind" text is gone');
+    const html = window.document.getElementById('app').innerHTML;
+    ok(/<rect/.test(html) && /z-band/.test(html), 'C-2: the delta bar is drawn in the band');
+    ok(/[+−][\d.]+s|[+−]\d+:\d\d|[+−]\d+分/.test(html.replace(/CT [+−]\d+分/g, '')),
+       'C-2: a time delta is shown instead of a distance');
+
+    // ゲート: ルート外なら出さない
+    S6.proj = { dist: 400 };
+    if (S6.dev) { S6.dev.state.deviated = true; S6.dev.state.dist = 400; }
+    T().render();
+    ok(!/[+−][\d.]+s ?[▲▼]?$/m.test(text().trim()), 'C-2: off-route hides the delta (existing ghost gate)');
+    S6.proj = { dist: 5 };
+    if (S6.dev) { S6.dev.state.deviated = false; S6.dev.state.dist = 5; }
+
+    // C-3: 窓の外の対象がエッジキューに出る
+    S6.mode = 'ident'; S6.identLayer = 'ground'; S6.identFilter = 0;
+    S6.heading = 0; S6.headingReal = Date.now(); S6.headingSettled = true;
+    T().render();
+    const cue0 = text();
+    S6.heading = 180; S6.headingReal = Date.now(); T().render();
+    const cue180 = text();
+    const hasCue = (t) => /←\s*\S+\s*\d+°/.test(t) || /\S+\s*\d+°\s*→/.test(t);
+    ok(hasCue(cue0) || hasCue(cue180), 'C-3: targets outside the window appear as edge cues');
+    ok(cue0 !== cue180, 'C-3: the cues change as the head turns');
+
+    S6.mode = keep.mode; S6.panel = keep.panel; S6.tracking = keep.tracking;
+    S6.ghostSrc = keep.src; R.domain = keep.dom; S6.sun = keep.sun; S6.proj = keep.proj;
+    S6.ghostBehind = null; T().render();
+  }
+
   // ---- SPEC B: 透視・星座は頭の向きに追従する(キー操作で方位を回さない) ----
   {
     const S5 = T().S;

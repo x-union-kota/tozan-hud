@@ -75,6 +75,97 @@ var CORE = (function () {
       vec: decodeVec(r.vec)
     };
   }
+  /* ---------- 引き返し限界(SPEC C-1) ---------- */
+  // 標準式: 登り 300m/h + 水平 4km/h / 下り 500m/h + 水平 4.5km/h
+  function legMin(dd, de) {
+    return de >= 0 ? (dd / 4000 + de / 300) * 60 : (dd / 4500 + (-de) / 500) * 60;
+  }
+  function elevAt(route, s) {
+    var c = route.cum, p = route.pts;
+    if (s <= 0) return p[0][2];
+    if (s >= c[c.length - 1]) return p[p.length - 1][2];
+    var i = 1;
+    while (i < c.length - 1 && c[i] < s) i++;
+    var span = c[i] - c[i - 1];
+    var f = span > 0 ? (s - c[i - 1]) / span : 0;
+    return p[i - 1][2] + (p[i][2] - p[i - 1][2]) * f;
+  }
+  // from→to の標準CT(分)。to<from なら後退で、各区間の標高差の符号が反転する
+  function ctBetween(route, from, to) {
+    if (!route || from === to) return 0;
+    var fwd = to > from, lo = Math.min(from, to), hi = Math.max(from, to);
+    var c = route.cum, p = route.pts, t = 0;
+    var s0 = lo, e0 = elevAt(route, lo);
+    for (var i = 0; i < c.length; i++) {
+      if (c[i] <= lo) continue;
+      var s1 = Math.min(c[i], hi);
+      var e1 = (s1 === c[i]) ? p[i][2] : elevAt(route, s1);
+      if (s1 > s0) t += legMin(s1 - s0, fwd ? (e1 - e0) : (e0 - e1));
+      s0 = s1; e0 = e1;
+      if (s1 >= hi) break;
+    }
+    return t;
+  }
+  // 現在地から最寄りの安全終点(起点 or ゴール)までの標準CT
+  function returnCT(route, along) {
+    var toStart = ctBetween(route, along, 0);
+    var toGoal = ctBetween(route, along, route.total);
+    var viaStart = toStart <= toGoal;
+    return { toStart: toStart, toGoal: toGoal,
+             min: viaStart ? toStart : toGoal, via: viaStart ? 'start' : 'goal' };
+  }
+  // 引き返し限界時刻 = 日没 − マージン − 復路CT。日没や現在地が無ければ null(出さない)
+  function turnaroundLimit(route, along, sunsetMs, marginMin, nowMs) {
+    if (!route || along == null || !sunsetMs) return null;
+    var r = returnCT(route, along);
+    var at = sunsetMs - (marginMin || 0) * 60000 - r.min * 60000;
+    return { at: at, remainMin: (at - nowMs) / 60000, ct: r.min, via: r.via };
+  }
+
+  /* ---------- ゴーストとの時間差(SPEC C-2) ---------- */
+  // ゴーストがその沿道位置を通過した経過秒。samples は [経過秒, along] の昇順列
+  function ghostTimeAt(src, along, opt) {
+    opt = opt || {};
+    if (src === 'ct') {
+      var m = ctAt(opt.route, along);
+      return m == null ? null : m * 60;
+    }
+    if (src === 'pace') {
+      if (!opt.paceGoal || !opt.route || !opt.route.total) return null;
+      return opt.paceGoal * 60 * (along / opt.route.total);
+    }
+    var ss = opt.samples;
+    if (!ss || ss.length < 2) return null;
+    if (along <= ss[0][1]) return ss[0][0];
+    for (var i = 1; i < ss.length; i++) {
+      if (ss[i][1] >= along) {
+        var d = ss[i][1] - ss[i - 1][1];
+        var f = d > 0 ? (along - ss[i - 1][1]) / d : 0;
+        return ss[i - 1][0] + (ss[i][0] - ss[i - 1][0]) * f;
+      }
+    }
+    return null;                                  // ゴーストがまだそこまで来ていない
+  }
+  // delta > 0 = 自分が速い(ゴーストは同じ地点をもっと後で通った)
+  function ghostDelta(src, along, elapsedSec, opt) {
+    var g = ghostTimeAt(src, along, opt);
+    return g == null ? null : g - elapsedSec;
+  }
+
+  /* ---------- コース偏差の符号(SPEC C-9 の下ごしらえ) ---------- */
+  // ルート進行方向に対して右にいれば +、左なら −
+  function signedCrossTrack(route, along, la, lo) {
+    if (!route) return null;
+    var a = routePointAt(route, Math.max(0, along - 25));
+    var b = routePointAt(route, Math.min(route.total, along + 25));
+    var here = routePointAt(route, along);
+    var brgRoute = bearing([a.la, a.lo], [b.la, b.lo]);
+    var brgMe = bearing([here.la, here.lo], [la, lo]);
+    var d = hav([here.la, here.lo], [la, lo]);
+    var rel = angDiff(brgMe, brgRoute);
+    return d * Math.sin(rel * D2R);
+  }
+
   /* ---------- 星表(stars.js の圧縮形式)を展開する ----------
      s: ラベル用 [名前, RA時, Dec度, 等級] / v: 線の頂点専用 [RA時, Dec度, 等級]
      c: {略号: {n: 和名, l: [[i,j], ...]}} — 添字は s.concat(v) の連結空間。
@@ -471,6 +562,8 @@ var CORE = (function () {
 
   return {
     decodePoly: decodePoly, decodeEle: decodeEle,
+    ctBetween: ctBetween, returnCT: returnCT, turnaroundLimit: turnaroundLimit,
+    ghostTimeAt: ghostTimeAt, ghostDelta: ghostDelta, signedCrossTrack: signedCrossTrack,
     buildStars: buildStars,
     demElev: demElev, contourStep: contourStep, gradPercentile: gradPercentile,
     marchingSquares: marchingSquares,

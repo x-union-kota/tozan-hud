@@ -26,6 +26,7 @@
     lap: 1, lapTimes: [], lapStartMs: 0, lapHist: [], segState: null, segPB: {},
     ghost: null, ghostSrc: '', prevGhostGap: null, overtakeArmed: true,
     paceGoal: null, paceEdit: null,   // N8: 目標タイム(分)。paceEdit非nullの間はready上の目標ペース層
+    tbMargin: (lsGet('thud.tbMargin') || 60),   // C-1: 引き返しマージン(分)
     ceremonyDone: {}, summitLog: [],
     home: lsGet('thud.home'),
     tracking: false,
@@ -1009,6 +1010,96 @@
     g.setAttribute('transform', 'rotate(' + rot.toFixed(0) + ' 50 50)');
   }
 
+  /* ---- C-1: 引き返し限界 ---- */
+  function turnaround() {
+    // 正直さゲート: 現在地未収束・日没未取得・urbanは出さない
+    if (!S.proj || !S.route || S.route.domain === 'urban') return null;
+    if (!S.sun || !S.sun.sunset) return null;
+    if (staleInfo().sec > 600) return null;
+    return CORE.turnaroundLimit(S.route, S.along, S.sun.sunset.getTime(), S.tbMargin, nowMs());
+  }
+  function turnaroundHtml() {
+    var t = turnaround();
+    if (!t) return '';
+    var m = Math.round(t.remainMin);
+    var cls = m <= 0 ? 'acc1' : (m <= 15 ? 'acc2' : 'dim');
+    var body = m <= 0
+      ? '引き返し限界 ' + CORE.fmtClock(new Date(t.at)) + ' <span class="acc1">超過</span>'
+      : '引き返し限界 ' + CORE.fmtClock(new Date(t.at)) + ' (あと' + m + '分)';
+    return '<div class="abs ctr" style="top:500px"><span class="sub ' + cls + '">' + body + '</span></div>';
+  }
+
+  /* ---- C-2: ゴーストとの時間差(デルタバー) ---- */
+  var deltaHist = [];
+  function ghostDeltaNow() {
+    if (!S.tracking || !S.proj || !S.ghostSrc) return null;
+    var st = staleInfo();
+    if (st.sec > 90 || offRouteNow()) return null;      // 既存のゴースト消灯条件を継承
+    var loop = isLoopRoute();
+    var el = (nowMs() - (loop ? (S.lapStartMs || S.startMs) : S.startMs)) / 1000;
+    return CORE.ghostDelta(S.ghostSrc, S.along, el, {
+      route: S.route, paceGoal: S.paceGoal,
+      samples: (S.ghost && S.ghost.samples) || null
+    });
+  }
+  function ghostDeltaHtml() {
+    var d = ghostDeltaNow();
+    if (d == null) return '';
+    var t = Date.now();
+    deltaHist.push([t, d]);
+    while (deltaHist.length && t - deltaHist[0][0] > 30000) deltaHist.shift();
+    var trend = '';
+    if (deltaHist.length > 3) {
+      var was = Math.abs(deltaHist[0][1]), now = Math.abs(d);
+      trend = now < was - 0.5 ? ' ▲' : (now > was + 0.5 ? ' ▼' : '');   // ▲=差が縮んでいる
+    }
+    var FULL = 60, W = 240, x = 300 + Math.max(-1, Math.min(1, d / FULL)) * (W / 2);
+    var col = d >= 0 ? '#ffd83b' : '#f5a11c';
+    // 60秒までは秒(0.1刻み)、それを超えたら分。1500.0s のような桁は一目で読めない
+    var ad = Math.abs(d);
+    var txt = (d >= 0 ? '+' : '−') +
+      (ad < 60 ? ad.toFixed(1) + 's' : CORE.fmtDur(ad / 60)) + trend;
+    return '<svg viewBox="0 0 600 46" width="600" height="46">' +
+      '<line x1="' + (300 - W / 2) + '" y1="30" x2="' + (300 + W / 2) + '" y2="30" stroke="#6b675c" stroke-width="2"/>' +
+      '<line x1="300" y1="22" x2="300" y2="38" stroke="#6b675c" stroke-width="2"/>' +
+      '<rect x="' + Math.min(300, x).toFixed(0) + '" y="26" width="' + Math.abs(x - 300).toFixed(0) +
+      '" height="8" fill="' + col + '"/>' +
+      '<text x="300" y="16" fill="' + col + '" font-size="21" text-anchor="middle" font-family="inherit">' +
+      txt + '</text></svg>';
+  }
+
+  /* ---- C-3: エッジキュー(±30°の窓の外にある対象) ---- */
+  function edgeCues(ht) {
+    var items = identItems() || [], out = { l: null, r: null };
+    var cand = [];
+    for (var i = 0; i < items.length; i++) {
+      var d = CORE.angDiff(items[i].brg, ht);
+      if (Math.abs(d) <= 30) continue;                  // 窓の中はキューにしない
+      cand.push({ n: items[i].n, d: d, pri: items[i].vis && items[i].t === 'peak' ? 0 : 2,
+                  abs: Math.abs(d) });
+    }
+    var gA = ghostAlongNow();
+    if (gA != null && S.lastFix) {
+      var gp = CORE.routePointAt(S.route, gA);
+      var gd = CORE.angDiff(CORE.bearing([S.lastFix.la, S.lastFix.lo], [gp.la, gp.lo]), ht);
+      if (Math.abs(gd) > 30) cand.push({ n: 'ゴースト', d: gd, pri: 1, abs: Math.abs(gd) });
+    }
+    cand.sort(function (a, b) { return a.pri - b.pri || a.abs - b.abs; });
+    for (i = 0; i < cand.length; i++) {
+      var side = cand[i].d < 0 ? 'l' : 'r';
+      if (!out[side]) out[side] = cand[i];
+    }
+    return out;
+  }
+  function edgeCueHtml(ht) {
+    var e = edgeCues(ht), h = '';
+    if (e.l) h += '<div class="abs" style="top:300px;left:8px;text-align:left"><span class="sub dim">← ' +
+      esc(e.l.n) + ' ' + Math.round(e.l.abs) + '°</span></div>';
+    if (e.r) h += '<div class="abs" style="top:300px;right:8px;left:auto;text-align:right"><span class="sub dim">' +
+      esc(e.r.n) + ' ' + Math.round(e.r.abs) + '° →</span></div>';
+    return h;
+  }
+
   function bandText() {                                   // ⑤帯: 優先度順に1件
     var t = nowMs();
     if (S.permDenied) return { c: 'acc1', s: '位置情報が未許可です' };
@@ -1021,7 +1112,7 @@
       return { c: 'acc2', s: '逸脱警告を抑制中 残' + Math.floor(r / 60) + ':' + ('0' + (r % 60)).slice(-2) };
     }
     if (S.wpFlashUntil > t) return { c: 'main-c', s: S.wpFlashMsg };
-    if (S.ghostBehind != null && S.mode === 'main') return { c: 'dim', s: 'ゴースト後方 ' + S.ghostBehind + 'm' };
+    if (S.ghostBehind != null && S.mode === 'main') return { c: 'dim', s: 'ゴースト後方 ' + S.ghostBehind + 'm', ghost: true };
     if (S.lastFix && S.lastFix.acc != null) return { c: 'dim', s: '±' + Math.round(S.lastFix.acc) + 'm' + (SIM ? simBadge() : '') };
     return { c: 'dim', s: SIM ? simBadge() : '' };
   }
@@ -1135,7 +1226,7 @@
       detail = '<div class="abs ctr" style="top:352px"><span class="ct1 dim">この方向に登録対象なし</span></div>';
     }
     var f = ['全部', '山', '施設'][S.identFilter];
-    return identShell('<div class="abs" style="top:36px">' + svg + '</div>' + detail +
+    return identShell('<div class="abs" style="top:36px">' + svg + '</div>' + detail + edgeCueHtml(ht) +
       '<div class="abs ctr" style="bottom:56px"><span class="sub dim">←→ ' + f + ' ／ ↑↓ 空レイヤ ／ 戻る</span></div>');
   }
   var SKY = null;
@@ -1331,9 +1422,13 @@
   function scrMain() {
     var head = panelHeader(['進捗', '断面', '地形図', '次WP', '天気']);
     var band = bandText();
-    var bandHtml = '<div class="abs z-band ' + band.c + '">' + esc(band.s) + '</div>';
+    // C-2: ゴーストの「後方○m」はデルタバー(時間差)に置き換える。距離より時間のほうが行動に効く
+    var dbar = (band.ghost || !band.s) ? ghostDeltaHtml() : '';
+    var bandHtml = dbar
+      ? '<div class="abs z-band">' + dbar + '</div>'
+      : '<div class="abs z-band ' + band.c + '">' + esc(band.s) + '</div>';
     var ov = ghostOverlayHtml();
-    if (S.panel === 0) return head + panelProgress() + ov + bandHtml;
+    if (S.panel === 0) return head + panelProgress() + turnaroundHtml() + ov + bandHtml;
     if (S.panel === 1) return head + panelProfile() + ov + bandHtml;
     if (S.panel === 2) return head + panelMap() + ov + bandHtml;
     if (S.panel === 3) return head + panelWp() + bandHtml;

@@ -396,5 +396,115 @@ console.log('[astro]');
   }
 }
 
+/* 13. 引き返し限界(SPEC C-1) */
+console.log('[turnaround]');
+{
+  const T = built.find(r => r.id === 'takao');       // 登り一辺倒のピストン
+  // 後退のCTは前進と別物: 登ってきた道を戻るのは下りなので速い
+  const mid = T.total * 0.5;
+  const back = CORE.ctBetween(T, mid, 0);
+  const fwd = CORE.ctBetween(T, 0, mid);
+  ok(back > 0 && fwd > 0, 'ctBetween returns positive times in both directions');
+  ok(back < fwd, `descending the way you came is faster than the climb (${back.toFixed(1)} < ${fwd.toFixed(1)}分)`);
+  near(CORE.ctBetween(T, mid, mid), 0, 1e-9, 'no distance, no time');
+  // 前進の積算は既存のCTプロファイルとおおむね一致する(同じ標準式)
+  near(CORE.ctBetween(T, 0, T.total), T.ctTotal, T.ctTotal * 0.1 + 1, 'forward ctBetween tracks the baked CT profile');
+
+  // returnCT: 起点寄りなら起点へ、ゴール寄りならゴールへ戻る
+  ok(CORE.returnCT(T, T.total * 0.1).via === 'start', 'near the start, the way back is the start');
+  ok(CORE.returnCT(T, T.total * 0.9).via === 'goal', 'near the goal, the way on is the goal');
+  const rc = CORE.returnCT(T, mid);
+  ok(rc.min === Math.min(rc.toStart, rc.toGoal), 'returnCT picks the cheaper end');
+
+  // turnaroundLimit: 進むほど限界時刻が早まる(復路が伸びるので)
+  const sunset = Date.UTC(2026, 7, 31, 9, 0);        // 18:00 JST
+  const now = sunset - 4 * 3600000;
+  const at10 = CORE.turnaroundLimit(T, T.total * 0.1, sunset, 60, now);
+  const at50 = CORE.turnaroundLimit(T, T.total * 0.5, sunset, 60, now);
+  ok(at10 && at50, 'turnaroundLimit returns a value once along and sunset are known');
+  ok(at50.at < at10.at, 'the limit gets earlier as you go deeper in');
+  ok(at50.remainMin < at10.remainMin, 'and the remaining minutes shrink with it');
+
+  // マージンは1分1分そのまま効く
+  const m30 = CORE.turnaroundLimit(T, mid, sunset, 30, now);
+  const m90 = CORE.turnaroundLimit(T, mid, sunset, 90, now);
+  near((m30.at - m90.at) / 60000, 60, 1e-6, 'margin 30 vs 90 shifts the limit by exactly 60 min');
+
+  // 出せないときは null(日没未取得・現在地未収束)
+  ok(CORE.turnaroundLimit(T, mid, null, 60, now) === null, 'no sunset, no limit (honesty gate)');
+  ok(CORE.turnaroundLimit(T, null, sunset, 60, now) === null, 'no position, no limit');
+}
+
+/* 14. ゴーストとの時間差(SPEC C-2) */
+console.log('[ghost delta]');
+{
+  const T = built.find(r => r.id === 'takao');
+  // 標準CTゴースト: その地点のCTがそのまま通過時刻
+  const half = T.total * 0.5;
+  const gct = CORE.ghostTimeAt('ct', half, { route: T });
+  near(gct / 60, CORE.ctAt(T, half), 1e-9, 'ct ghost passes a point at its CT');
+
+  // 目標ペースゴースト: 等速なので位置に比例
+  const gp = CORE.ghostTimeAt('pace', half, { route: T, paceGoal: 120 });
+  near(gp, 120 * 60 * 0.5, 1, 'pace ghost is linear in distance');
+  ok(CORE.ghostTimeAt('pace', half, { route: T }) === null, 'pace ghost needs a goal time');
+
+  // 記録の再生: サンプル間は線形補間
+  const samples = [[0, 0], [60, 100], [180, 400]];
+  near(CORE.ghostTimeAt('last', 100, { samples }), 60, 1e-9, 'recorded ghost hits its samples');
+  near(CORE.ghostTimeAt('last', 250, { samples }), 120, 1e-9, 'recorded ghost interpolates between samples');
+  ok(CORE.ghostTimeAt('last', 900, { samples }) === null,
+     'beyond the recording we do not guess (honesty gate)');
+  ok(CORE.ghostTimeAt('last', 50, { samples: [[0, 0]] }) === null, 'a one-point recording is not a ghost');
+
+  // delta の符号: 自分が速ければ +
+  const d = CORE.ghostDelta('pace', half, 120 * 60 * 0.5 - 30, { route: T, paceGoal: 120 });
+  near(d, 30, 1, 'being 30s early reads as +30');
+  const d2 = CORE.ghostDelta('pace', half, 120 * 60 * 0.5 + 45, { route: T, paceGoal: 120 });
+  near(d2, -45, 1, 'being 45s late reads as −45');
+  ok(CORE.ghostDelta('last', 900, 100, { samples }) === null, 'no ghost time, no delta');
+
+  // 受け入れ条件の正しい形。SPECは「一定ペースで走るとdeltaが線形」と書いているが、
+  // それはCTプロファイルが距離に対して線形のときだけ成り立つ。高尾山の実プロファイルは
+  // 非線形(最初の10%でCTの21%を使う)なので、意味のある不変量はこちら:
+  //   CTちょうどのペース → delta は常に0 / CTの一定倍のペース → delta は単調
+  {
+    let worst = 0;
+    for (let f = 0.1; f <= 0.9; f += 0.1) {
+      const along = T.total * f;
+      const dd = CORE.ghostDelta('ct', along, CORE.ctAt(T, along) * 60, { route: T });
+      worst = Math.max(worst, Math.abs(dd));
+    }
+    ok(worst < 1e-6, 'moving at exactly CT pace keeps the delta at zero');
+
+    let prev = null, monotone = true;
+    for (let f = 0.1; f <= 0.9; f += 0.1) {
+      const along = T.total * f;
+      const dd = CORE.ghostDelta('ct', along, CORE.ctAt(T, along) * 60 / 1.2, { route: T });
+      if (prev != null && dd <= prev) monotone = false;
+      prev = dd;
+    }
+    ok(monotone, 'holding a constant multiple of CT pace grows the delta monotonically');
+  }
+}
+
+/* 15. コース偏差の符号(SPEC C-9 の下ごしらえ) */
+console.log('[cross track]');
+{
+  const T = built.find(r => r.id === 'takao');
+  const mid = T.total * 0.5, p = CORE.routePointAt(T, mid);
+  const a = CORE.routePointAt(T, mid - 25), b = CORE.routePointAt(T, mid + 25);
+  const brg = CORE.bearing([a.la, a.lo], [b.la, b.lo]);
+  const right = CORE.destPoint(p.la, p.lo, (brg + 90) % 360, 30);
+  const left = CORE.destPoint(p.la, p.lo, (brg + 270) % 360, 30);
+  const xr = CORE.signedCrossTrack(T, mid, right[0], right[1]);
+  const xl = CORE.signedCrossTrack(T, mid, left[0], left[1]);
+  ok(xr > 0, `30m to the right of travel reads positive (${xr.toFixed(1)})`);
+  ok(xl < 0, `30m to the left reads negative (${xl.toFixed(1)})`);
+  near(Math.abs(xr), 30, 3, 'the magnitude is the actual offset in metres');
+  near(Math.abs(xl), 30, 3, 'and the same on the other side');
+  near(CORE.signedCrossTrack(T, mid, p.la, p.lo), 0, 1, 'on the line reads zero');
+}
+
 console.log(`\n${count - fail}/${count} passed`);
 process.exit(fail ? 1 : 0);
