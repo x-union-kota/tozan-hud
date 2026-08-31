@@ -35,6 +35,7 @@
     emaKmh: 0, moving: true, lastMoveMs: 0,
     dev: null, suppressUntil: 0, graceUntil: 0,
     heading: null, headingReal: 0, headingSettled: false, hmode: (lsGet('thud.hmode') || 'alpha'),
+    pitch: null, pitchReal: 0,   // 仰角(0=水平, +=見上げ)。空レイヤの高度帯がこれに追従する
     sun: null, sunNotice: false,
     wx: null, wxTriedMs: 0,
     track: [], lastTrackMs: 0,
@@ -98,6 +99,7 @@
       var ah2 = CORE.routePointAt(S.route, Math.min(S.route.total, sim.along + 40));
       S.heading = (CORE.bearing([p.la, p.lo], [ah2.la, ah2.lo]) + (sim.headOff || 0) + gauss() * 8 + 360) % 360;
       S.headingReal = Date.now(); S.headingSettled = true;
+      S.pitch = sim.pitchOff || 0; S.pitchReal = Date.now();   // simの仰角(y/uキーで動かす)
       cb({ la: pos[0], lo: pos[1], acc: acc, t: nowMs() });
     }
 
@@ -181,7 +183,15 @@
     return function (e) {
       if (isAbs) DIAG.absN++; else DIAG.oriN++;
       DIAG.alpha = e.alpha; DIAG.wkc = e.webkitCompassHeading; DIAG.absFlag = e.absolute;
-      if (e.beta != null) DIAG.beta = e.beta;      // 仰角スパイク用(N7bの前提データ)
+      if (e.beta != null) {
+        DIAG.beta = e.beta;
+        // 仰角: 端末を立てた姿勢が beta≈90 なので 90 を引いて「水平=0・見上げ=+」にする。
+        // ★実機で1度だけ確認が要る(HANDOFF §4-8)。診断画面の β と ピッチ を見て、
+        //   水平を向いたときピッチが0付近ならこの仮定で合っている
+        var pr = Math.max(-85, Math.min(85, e.beta - 90));
+        S.pitch = (S.pitch == null) ? pr : (0.3 * pr + 0.7 * S.pitch);
+        S.pitchReal = Date.now();
+      }
       if (e.gamma != null) DIAG.gamma = e.gamma;
       var h = null;
       if (e.webkitCompassHeading != null) h = e.webkitCompassHeading;   // iOS系
@@ -725,7 +735,7 @@
   var KEYS = ['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Enter', 'Escape', 'Backspace'];
   window.addEventListener('keydown', function (e) {
     var k = e.key;
-    if (SIM && handleSimKey(k)) { e.preventDefault(); return; }
+    if (SIM && handleSimKey(k)) { e.preventDefault(); render(); return; }   // 方位/仰角キーは即座に反映する
     if (KEYS.indexOf(k) < 0) return;
     e.preventDefault();
     if (k === 'Backspace') k = 'Escape';   // 公式サンプルは Backspace も戻る扱い
@@ -847,8 +857,19 @@
       if (S.sun && S.sun.sunset) simClockOff += (S.sun.sunset.getTime() - nowMs()) - 95 * 60000;
       return true;
     }
-    if (k === 'j' || k === 'J') { sim.headOff = (sim.headOff || 0) - 15; return true; }
-    if (k === 'k' || k === 'K') { sim.headOff = (sim.headOff || 0) + 15; return true; }
+    // 首振り(j/k)と仰角(y/u)。次のfixを待たずS側にも即反映する(でないと最大1秒遅れる)
+    if (k === 'j' || k === 'J' || k === 'k' || k === 'K') {
+      var dh = (k === 'k' || k === 'K') ? 15 : -15;
+      sim.headOff = (sim.headOff || 0) + dh;
+      if (S.heading != null) { S.heading = ((S.heading + dh) % 360 + 360) % 360; S.headingReal = Date.now(); }
+      return true;
+    }
+    if (k === 'y' || k === 'Y' || k === 'u' || k === 'U') {
+      var dp = (k === 'u' || k === 'U') ? 10 : -10;
+      sim.pitchOff = Math.max(-60, Math.min(80, (sim.pitchOff || 0) + dp));
+      S.pitch = sim.pitchOff; S.pitchReal = Date.now();
+      return true;
+    }
     if (k === 'g' || k === 'G') {          // 進捗もろとも終盤へ(テレポートではなく早送り)
       sim.along = Math.max(0, S.route.total - 150);
       S.along = sim.along; S.maxAlong = Math.max(S.maxAlong, sim.along);
@@ -1059,12 +1080,23 @@
     return items;
   }
   function stripX(diff, half) { return 300 + diff * (270 / half); }
+  function headingWait() {
+    // 「較正中」と「取れていない」は別物。黙って手動に落とさず、どちらなのかを言う(SPEC B-3)
+    if (SIM) return '<div class="eta1 dim">方位較正中…</div>';
+    var got = DIAG.oriN + DIAG.absN;
+    if (got === 0 && DIAG.reqMs && Date.now() - DIAG.reqMs > 5000) {
+      return '<div class="eta1 acc2">方位取得不可</div>' +
+        '<div class="sub dim" style="margin-top:14px">センサーイベントが1件も来ていません。' +
+        '戻る→↓の診断画面で ori/abs の受信数と権限を確認してください</div>';
+    }
+    return '<div class="eta1 dim">方位較正中…</div>' +
+      '<div class="sub dim" style="margin-top:14px">頭をゆっくり左右に振ってください</div>';
+  }
   function scrIdentGround() {
     var ht = headingTrue();
     if (!S.lastFix) return identShell('<div class="abs ctr" style="top:250px"><span class="eta1 dim">GPS待ち…</span></div>');
     if (ht == null || !S.headingSettled) {
-      return identShell('<div class="abs ctr" style="top:250px"><span class="eta1 dim">方位較正中…</span>' +
-        '<div class="sub dim" style="margin-top:14px">頭をゆっくり左右に振ってください</div></div>');
+      return identShell('<div class="abs ctr" style="top:250px">' + headingWait() + '</div>');
     }
     var items = identItems() || [];
     var HALF = 30, shown = [];
@@ -1114,18 +1146,26 @@
   function scrIdentSky() {
     var ht = headingTrue();
     if (ht == null || !S.headingSettled || !S.lastFix) {
-      return identShell('<div class="abs ctr" style="top:250px"><span class="eta1 dim">方位較正中…</span></div>');
+      return identShell('<div class="abs ctr" style="top:250px">' + headingWait() + '</div>');
     }
     var me = [S.lastFix.la, S.lastFix.lo], t = nowMs(), HALF = 30;
+    // 仰角追従: いま見上げている角度の ±25°を映す。betaが来ないときは既定帯20〜60°
+    var pitchOk = (S.pitch != null) && (Date.now() - S.pitchReal) < 3000;
+    // 仰角が来ていれば「いま見上げている角度±25°」、来ていなければ既定帯20〜60°(SPEC B-5)
+    var vLo = pitchOk ? S.pitch - 25 : 20;
+    var vHi = pitchOk ? S.pitch + 25 : 60;
     var svg = '<svg viewBox="0 0 600 430" width="600" height="430">';
-    svg += '<line x1="30" y1="400" x2="570" y2="400" stroke="#6b675c" stroke-width="2"/>';
-    function sy(alt) { return 400 - Math.max(0, Math.min(70, alt)) * (340 / 70); }
+    function sy(alt) { return 400 - (alt - vLo) / (vHi - vLo) * 340; }
+    if (vLo <= 0 && vHi >= 0) {                       // 地平線が帯の中にあるときだけ引く
+      var hy = sy(0).toFixed(0);
+      svg += '<line x1="30" y1="' + hy + '" x2="570" y2="' + hy + '" stroke="#6b675c" stroke-width="2"/>';
+    }
     var K = sky(), NS = K.s.length;
     var pos = {}, i, vis = 0;
     function place(idx, ra, dec) {
       var aa = ASTRO.altAz(ra, dec, me[0], me[1], t);
       var dd = CORE.angDiff(aa.az, ht);
-      if (aa.alt < -1 || Math.abs(dd) > HALF) return;
+      if (aa.alt < vLo || aa.alt > vHi || Math.abs(dd) > HALF) return;
       pos[idx] = [stripX(dd, HALF), sy(aa.alt)];
       vis++;
     }
@@ -1155,7 +1195,7 @@
     for (i = 0; i < pls.length; i++) {
       var pa = ASTRO.altAz(pls[i].ra, pls[i].dec, me[0], me[1], t);
       var pd = CORE.angDiff(pa.az, ht);
-      if (pa.alt < 0 || Math.abs(pd) > HALF) continue;
+      if (pa.alt < vLo || pa.alt > vHi || Math.abs(pd) > HALF) continue;
       var xx = stripX(pd, HALF), yy = sy(pa.alt);
       svg += '<circle cx="' + xx.toFixed(0) + '" cy="' + yy.toFixed(0) + '" r="5" fill="none" stroke="currentColor" stroke-width="2"/>';
       named.push([[xx, yy], pls[i].n]);
@@ -1165,7 +1205,9 @@
     }
     svg += '</svg>';
     return identShell('<div class="abs" style="top:10px;color:' + (S.night ? '#b04040' : '#f5f1e6') + '">' + svg + '</div>' +
-      '<div class="abs ctr" style="bottom:56px"><span class="sub dim">' + vis + '星 ／ ↑↓ 地上へ ／ 夜間はシステム輝度を最低に</span></div>');
+      '<div class="abs ctr" style="bottom:56px"><span class="sub dim">' + vis + '星 ／ 仰角' +
+      Math.round(vLo) + '〜' + Math.round(vHi) + '°' + (pitchOk ? '' : '(既定)') +
+      ' ／ ↑↓ 地上へ ／ 夜間はシステム輝度を最低に</span></div>');
   }
   function identShell(inner) {
     var band = bandText();
@@ -1261,7 +1303,9 @@
       '<div>変換: <span class="main-c">' + (S.hmode === 'inv' ? '360−α' : 'α直') + '</span>' +
       ' (←→切替) 東向きでα≈90ならα直が正</div>' +
       '<div>GPS: <span class="main-c">' + gpsLine + '</span></div>' + startLine +
-      '<div>β:' + v(DIAG.beta) + ' γ:' + v(DIAG.gamma) + '  真方位:' + v(headingTrue()) + '°(偏角' + ((S.route && S.route.dec) || 7.5) + '西)</div>' +
+      '<div>β:' + v(DIAG.beta) + ' γ:' + v(DIAG.gamma) + ' → ピッチ:' + v(S.pitch) +
+      '°<span class="dim">(水平を向いて0付近なら正)</span></div>' +
+      '<div>真方位:' + v(headingTrue()) + '°(偏角' + ((S.route && S.route.dec) || 7.5) + '西)</div>' +
       '<div class="dim">reg:' + ((S.route && S.route.reg) ? S.route.reg.length : 0) + '件 星:' + (sky().s.length + sky().v.length) + '(線用' + sky().v.length + ') Lap:' + S.lap + '</div>' +
       '<div class="dim">星表: HYG Database (CC BY-SA) ／ 星座線: Stellarium</div>' +
       '</div></div>';
@@ -1736,13 +1780,18 @@
                  unpx: function (x, y) {   // px() の逆(アフィンなので解析的に戻せる)
                    return [(((x - ox) / sc) + minx) / klon, ((((H - y) - oy) / sc) + miny) / klat];
                  } };
-    // 街中(urban)で道路ベクタを持っているなら、それが既定の地図。等高線は取りに行かない
-    var useVec = !!(r.vec && r.domain === 'urban');
+    // 街中(urban)の地図: 道路ベクタがあればそれ。無ければ地形は描かない。
+    // 実機(晴海)で確認したとおり、平坦地の等高線は岸壁段差と建物基壇しか描かず
+    // 意味ありげなノイズにしかならない = 正直さゲートの逆(SPEC A-1)
+    var isUrban = (r.domain === 'urban');
+    var useVec = !!(r.vec && isUrban);
     var under = '', credit;
     if (useVec) {
       if (!(tKey in vecCache)) vecCache[tKey] = drawVec(r, geoM, W, H);
       credit = vecCache[tKey] ? '地図: © OpenStreetMap contributors' : '線図(地図未取得)';
       if (vecCache[tKey]) under = vecCache[tKey];
+    } else if (isUrban) {
+      credit = '';                        // 黒地+ルート+WPのみ。出典が無いのでクレジットも出さない
     } else {
       if (!terrCache[tKey]) buildTerrain(tKey, geoM, W, H);
       var terr = terrCache[tKey];
@@ -1754,12 +1803,14 @@
         credit = '線図(地形未取得)';
       }
     }
+    credit = credit || '';
     under = under
       ? '<img src="' + under + '" width="' + W + '" height="' + H + '" style="position:absolute;left:0;top:0">'
       : '';
     return '<div class="abs ctr" style="top:44px"><div style="position:relative;width:' + W + 'px;height:' + H + 'px;display:inline-block">' + under +
       '<div style="position:absolute;left:0;top:0">' + svg + '</div>' +
-      '<div style="position:absolute;right:4px;bottom:2px;font-size:14px;color:#6b675c">' + credit + '</div></div></div>' +
+      (credit ? '<div style="position:absolute;right:4px;bottom:2px;font-size:14px;color:#6b675c">' + credit + '</div>' : '') +
+      '</div></div>' +
       '<div class="abs ctr" style="top:396px"><span class="ct1 dim">' + cap + '</span></div>' +
       '<div class="abs ctr" style="top:428px"><span class="sub dim">' + rawCap + '</span></div>';
   }

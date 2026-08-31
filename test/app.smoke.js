@@ -167,6 +167,50 @@ const sleep = (ms) => new Promise(r => setTimeout(r, ms));
   key('ArrowDown');                   // 診断を閉じる
   ok(/ピンチで自宅削除/.test(text()), 'ready hint switches to deletion once registered');
 
+  // ---- SPEC B: 透視・星座は頭の向きに追従する(キー操作で方位を回さない) ----
+  {
+    const S5 = T().S;
+    const before = { mode: S5.mode, layer: S5.identLayer, panel: S5.panel, tracking: S5.tracking };
+    S5.tracking = true; S5.mode = 'ident'; S5.identLayer = 'ground';
+    S5.lastFix = S5.lastFix || { la: S5.route.pts[0][0], lo: S5.route.pts[0][1], acc: 8, t: Date.now() };
+    S5.heading = 90; S5.headingReal = Date.now(); S5.headingSettled = true;
+    T().render();
+    const at90 = text();
+    S5.heading = 180; S5.headingReal = Date.now(); T().render();
+    const at180 = text();
+    ok(at90 !== at180, 'the see-through strip follows S.heading (turning the head redraws it)');
+    const dec = S5.route.dec || 7.5;
+    const tick = (h) => Math.round(((h - dec) % 360 + 360) % 360) + '°';
+    ok(at90.includes(tick(90)) && at180.includes(tick(180)),
+       `the bearing scale is centred on the true heading (${tick(90)} / ${tick(180)})`);
+
+    // ←→ はフィルタ切替であって方位を回さない
+    const h0 = S5.heading;
+    key('ArrowLeft'); key('ArrowRight');
+    ok(S5.heading === h0, 'left/right never rotate the heading (they switch the filter)');
+
+    // 仰角追従: 上を向くと空レイヤの高度帯が上がる
+    S5.identLayer = 'sky';
+    S5.pitch = 10; S5.pitchReal = Date.now(); T().render();
+    const low = text();
+    S5.pitch = 55; S5.pitchReal = Date.now(); T().render();
+    const high = text();
+    const band = (t) => { const m = t.match(/仰角(-?\d+)〜(-?\d+)°/); return m ? [+m[1], +m[2]] : null; };
+    ok(band(low) && band(high), 'the sky layer states which elevation band it is showing');
+    ok(band(high)[0] > band(low)[0] && band(high)[1] > band(low)[1],
+       `looking up raises the band (${band(low)} → ${band(high)})`);
+    ok(band(low)[1] - band(low)[0] === 50, 'the band is the pitch ±25° window');
+    ok(band(low)[0] === -15 && band(high)[0] === 30, 'the band is centred on the pitch itself');
+
+    // betaが来ないときは既定帯(20〜60°)で、そうと分かるように出す
+    S5.pitch = null; S5.pitchReal = 0; T().render();
+    const dflt = text();
+    ok(/仰角20〜60°\(既定\)/.test(dflt), 'without pitch it falls back to the default band and says so');
+
+    S5.identLayer = before.layer; S5.mode = before.mode; S5.panel = before.panel;
+    S5.tracking = before.tracking; T().render();
+  }
+
   // ---- v3.2: 検証用ダンプ(docs/VERIFICATION.md の手順⑥⑦が使う) ----
   {
     ok(typeof T().dumpGhost === 'function' && typeof T().dumpSky === 'function',
@@ -204,6 +248,16 @@ const sleep = (ms) => new Promise(r => setTimeout(r, ms));
     ok(/地図: © OpenStreetMap contributors|線図\(地図未取得\)/.test(txt),
        'urban route with vec renders the OSM map layer (or degrades to the line diagram)');
     ok(!/地理院タイル/.test(txt), 'vec route does not also claim the GSI terrain credit');
+
+    // SPEC A-1: urbanで道路ベクタが無いときは等高線を描かず、出典行も出さない
+    r.vec = null; T().render();
+    const bare = text();
+    ok(!/地理院タイル/.test(bare) && !/等高線/.test(bare),
+       'an urban route without vectors draws no contours (flat ground makes them noise)');
+    ok(!/線図\(地形未取得\)/.test(bare), 'and it does not apologise for a layer it never wanted');
+    r.domain = 'mountain'; T().render();
+    ok(/線図\(地形未取得\)|地理院タイル/.test(text()),
+       'a mountain route still asks for the terrain layer');
     r.vec = null; r.domain = 'mountain'; S4.panel = before; S4.mode = beforeMode; T().render();
     ok(!/OpenStreetMap/.test(text()), 'credit reverts once the vec is gone');
   }
