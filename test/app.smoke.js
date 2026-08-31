@@ -167,6 +167,19 @@ const sleep = (ms) => new Promise(r => setTimeout(r, ms));
   key('ArrowDown');                   // 診断を閉じる
   ok(/ピンチで自宅削除/.test(text()), 'ready hint switches to deletion once registered');
 
+  // ---- v3.2: 検証用ダンプ(docs/VERIFICATION.md の手順⑥⑦が使う) ----
+  {
+    ok(typeof T().dumpGhost === 'function' && typeof T().dumpSky === 'function',
+       'verification dumps are exposed on __THUD');
+    const g = T().dumpGhost();
+    ok('src' in g && 'ghostAlong' in g && 'expectPace' in g && 'expectCt' in g,
+       'dumpGhost reports both the drawn value and the analytic one');
+    const k = T().dumpSky();
+    // 計測停止中はGPSが無いので error を返すのが正しい挙動
+    ok(('error' in k) || (Array.isArray(k.objects) && k.objects.length > 0),
+       'dumpSky either lists objects or says why it cannot');
+  }
+
   // ---- v3.2: 街中の地図(焼き込みOSM道路ベクタ) ----
   {
     const S4 = T().S, r = S4.route;

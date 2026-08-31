@@ -9,8 +9,8 @@ Meta Ray-Ban Display(HUD+Neural Band)向けの登山/ランHUD。単一HTMLのWe
 
 ```bash
 python3 tools/build.py            # src/* → dist/index.html (単一HTML組み立て)
-node test/core.test.js            # 純ロジック 99件
-node test/app.smoke.js            # jsdom統合 74件 (要: npm install jsdom / dist を先にビルド)
+node test/core.test.js            # 純ロジック 108件
+node test/app.smoke.js            # jsdom統合 77件 (要: npm install jsdom / dist を先にビルド)
 python3 test/gpx2route.test.py    # 変換ツール 92件
 
 cp dist/index.html index.html && cp dist/sw.js sw.js   # 公開用コピー(GitHub Pages はリポジトリ直下を配信)
@@ -49,10 +49,11 @@ dist/index.html dist/sw.js   ビルド成果物
 
 ## 残タスク(優先度順・詳細は HANDOFF.md §1)
 
-1. 検証チェーン⑥⑦の手順書化(sim既知ゴースト照合・Stellarium照合)
+HANDOFF §1 の残タスクは **v3.2 で全て消化した**。
 
-データソース改定(`docs/DATA_SOURCES.md` 優先1〜4)は **v3.2 で全て完了**。
-新しい外部データを足すときは、そこに書いた「手元DL → ツール投入」の型に合わせること。
+- データソース改定(`docs/DATA_SOURCES.md` 優先1〜4)完了。新しい外部データを足すときは、
+  そこに書いた「手元DL → ツール投入」の型に合わせること
+- 検証チェーン⑥⑦は `docs/VERIFICATION.md` に手順書化した。天文・ゴーストまわりを触ったら通す
 
 コンテナ/サンドボックスから Overpass API・DEMタイル等への外部アクセスは不可の前提で、
 「ユーザーが手元でダウンロード → ツールに投入」のオフライン2段構えを維持すること(gpx2route.py が前例)。

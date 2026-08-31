@@ -3,7 +3,7 @@
 """v3 レジストリ生成: 山頂・POI・区間・偏角をルートに焼き込む。
 ※デモは精選DB。実運用は gpx2route.py の DEM レイキャスト(雛形あり)で生成する。
    vis=True(実線=可視) は「著名な展望対象」として手動確証したもののみ。他は透視(破線)。"""
-import json, math, os, sys
+import argparse, json, math, os, sys
 
 # ── 主要峰DB (name, lat, lng, elev) ──
 PEAKS = [
@@ -60,7 +60,7 @@ SEGMENTS = {
  'harumi': [(0.30, 0.55, '北岸ストレート')],
 }
 DOMAIN = {'harumi':'urban','kokyo':'urban','takao':'mountain','fuji':'mountain'}
-DECLINATION = 7.5   # 関東近辺 西偏≒7.5°(実パイプラインは地理院値をルート別に)
+DECLINATION = 7.5   # --wmm 未指定時の保険。関東近辺 西偏≒7.5°
 
 def build_registry(rid, route):
     la0 = route['_lat0']; lo0 = route['_lon0']
@@ -82,7 +82,25 @@ def build_registry(rid, route):
         add(n, la, lo, el, t, False)                     # POIは常に透視(破線)
     return reg
 
+def wmm_dec_for(anchor, wmm_path, date_str):
+    """WMM係数からアンカー地点の偏角を出す。gpx2route.py の実装をそのまま使う"""
+    sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+    import gpx2route as G, datetime
+    coef = G.load_wmm(wmm_path)
+    if date_str:
+        yy, mm, dd = [int(x) for x in date_str.split('-')]
+    else:
+        td = datetime.date.today(); yy, mm, dd = td.year, td.month, td.day
+    yr = G.decimal_year(yy, mm, dd)
+    if not (coef['epoch'] <= yr <= coef['epoch'] + 5):
+        sys.stderr.write(f"⚠ WMM{int(coef['epoch'])} の有効期間外の日付({yy}-{mm:02d}-{dd:02d})\n")
+    return round(G.wmm_declination(coef, anchor[0], anchor[1], 0.0, yr), 2)
+
 def main():
+    ap = argparse.ArgumentParser()
+    ap.add_argument('--wmm', default=None, help='WMM係数(.COF/.zip)。デモ各ルートの偏角を実値にする')
+    ap.add_argument('--date', default=None, help='偏角の基準日 YYYY-MM-DD (既定: 今日)')
+    args = ap.parse_args()
     src = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'src', 'routes.js')
     txt = open(src, encoding='utf-8').read()
     head, arr = txt.split('var ROUTES = ', 1)
@@ -93,12 +111,12 @@ def main():
                   'kokyo':(35.6772,139.7524),'fuji':(35.3966,138.7333)}[r['id']]
         r['_lat0'], r['_lon0'] = anchor
         r['reg'] = build_registry(r['id'], r)
-        r['dec'] = DECLINATION
+        r['dec'] = wmm_dec_for(anchor, args.wmm, args.date) if args.wmm else DECLINATION
         r['domain'] = DOMAIN.get(r['id'], 'mountain')
         r['segs'] = [{'a':round(a*r['dist']),'b':round(b*r['dist']),'n':n}
                      for (a,b,n) in SEGMENTS.get(r['id'], [])]
         del r['_lat0']; del r['_lon0']
-        sys.stderr.write(f"{r['id']}: reg {len(r['reg'])}件 segs {len(r['segs'])}\n")
+        sys.stderr.write(f"{r['id']}: reg {len(r['reg'])}件 segs {len(r['segs'])} 偏角 {r['dec']}°\n")
     out = head + 'var ROUTES = ' + json.dumps(routes, ensure_ascii=False, separators=(',',':')) + ';\n'
     open(src, 'w', encoding='utf-8').write(out)
     sys.stderr.write(f"routes.js {len(out.encode())/1024:.1f}KB\n")

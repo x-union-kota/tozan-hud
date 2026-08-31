@@ -10,12 +10,12 @@ Meta Ray-Ban Display(HUD + Neural Band)向けの登山/ランHUD。CDN・外部�
 ```bash
 npm install jsdom                 # jsdom統合テスト用
 python3 tools/build.py            # src/* → dist/index.html
-node test/core.test.js            # 純ロジック 99件
-node test/app.smoke.js            # jsdom統合 74件
+node test/core.test.js            # 純ロジック 108件
+node test/app.smoke.js            # jsdom統合 77件
 python3 test/gpx2route.test.py    # 変換ツール 92件
 ```
 
-3スイート全通過(99 + 74 + 92 = 265件)を確認してから作業を始める。
+3スイート全通過(108 + 77 + 92 = 277件)を確認してから作業を始める。
 
 ## 公開(GitHub Pages)
 
@@ -46,6 +46,8 @@ python3 tools/build.py && cp dist/index.html index.html && cp dist/sw.js sw.js
 | --- | --- |
 | `CLAUDE.md` | 守るべき制約・コマンド・設計思想(作業前に毎回読む) |
 | `docs/HANDOFF.md` | 実装状況・残タスク・実機で確定済みの既知事実 |
+| `docs/DATA_SOURCES.md` | データソース(地形DEM/OSM/星表/偏角)の仕様と実装結果 |
+| `docs/VERIFICATION.md` | 手で通す検証手順(既知ゴースト照合・Stellarium照合) |
 | `docs/meta-display-dev-guide.md` | 画面・入力・配色の5原則 |
 
 ## 構成

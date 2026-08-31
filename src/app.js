@@ -1843,5 +1843,42 @@
   else boot();
 
   // テスト用フック(実機では未使用)
-  if (typeof window !== 'undefined') window.__THUD = { S: S, Geo: Geo, render: render, nowMs: nowMs, checkLapAndSegs: checkLapAndSegs, ghostAlongNow: ghostAlongNow };
+  /* ---- 検証用ダンプ(docs/VERIFICATION.md の手順⑥⑦が使う) ----
+     画面は絵しか出さないので、外部(Stellarium・解析値)と突き合わせるには数字が要る。 */
+  function dumpSky() {
+    if (!S.lastFix) return { error: 'GPS未取得。計測を開始してから実行する' };
+    var t = nowMs(), me = [S.lastFix.la, S.lastFix.lo], out = [];
+    function add(n, ra, dec) {
+      var a = ASTRO.altAz(ra, dec, me[0], me[1], t);
+      out.push({ name: n, az: +a.az.toFixed(2), alt: +a.alt.toFixed(2),
+                 ra: +ra.toFixed(4), dec: +dec.toFixed(3) });
+    }
+    var pl = ASTRO.planets(t);
+    for (var i = 0; i < pl.length; i++) add(pl[i].n, pl[i].ra, pl[i].dec);
+    var mo = ASTRO.moonEq(t); add('月', mo.ra, mo.dec);
+    var su = ASTRO.sunEq(t); add('太陽', su.ra, su.dec);
+    var K = sky();
+    for (i = 0; i < K.s.length; i++) if (K.s[i][0] && K.s[i][3] < 1.6) add(K.s[i][0], K.s[i][1], K.s[i][2]);
+    return { at: new Date(t).toString(), lat: +me[0].toFixed(5), lon: +me[1].toFixed(5),
+             heading: S.heading, headingTrue: headingTrue(), dec: S.route ? S.route.dec : null,
+             objects: out };
+  }
+  function dumpGhost() {
+    var gA = ghostAlongNow();
+    var r = S.route, el = (nowMs() - S.startMs) / 60000;
+    var lapEl = (nowMs() - (S.lapStartMs || S.startMs)) / 60000;
+    return {
+      src: S.ghostSrc, paceGoal: S.paceGoal, lap: S.lap,
+      elapsedMin: +el.toFixed(3), lapElapsedMin: +lapEl.toFixed(3),
+      total: r ? Math.round(r.total) : null,
+      along: Math.round(S.along), ghostAlong: gA == null ? null : Math.round(gA),
+      gapM: gA == null ? null : Math.round(S.along - gA),
+      // 解析値: 目標ペースは等速なので位置が閉じた式で出る。これと ghostAlong が一致するはず
+      expectPace: (S.ghostSrc === 'pace' && S.paceGoal > 0 && r)
+        ? Math.round(Math.max(0, Math.min(r.total, r.total * ((isLoopRoute() ? lapEl : el) / S.paceGoal))))
+        : null,
+      expectCt: (S.ghostSrc === 'ct' && r) ? Math.round(CORE.ctInverse(r, el)) : null
+    };
+  }
+  if (typeof window !== 'undefined') window.__THUD = { S: S, Geo: Geo, render: render, nowMs: nowMs, checkLapAndSegs: checkLapAndSegs, ghostAlongNow: ghostAlongNow, dumpSky: dumpSky, dumpGhost: dumpGhost };
 })();

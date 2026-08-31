@@ -339,5 +339,62 @@ console.log('[stars]');
   ok(CORE.buildStars({}).s.length === 0, 'buildStars({}) degrades to an empty sky');
 }
 
+/* 12. 天球座標変換(検証チェーン⑦の一次チェックを機械化) */
+console.log('[astro]');
+{
+  const ASTRO = require('../src/astro.js');
+  const t = Date.UTC(2026, 7, 31, 12, 0, 0);
+  // 天の北極の高度は観測地の緯度に厳密に一致し、方位は真北になる。
+  // ここが合わないなら暦以前に座標変換がおかしい
+  let worstAlt = 0, worstAz = 0;
+  for (const la of [-45, -10, 0, 20, 35.633, 60, 80]) {
+    for (const lo of [-150, -30, 0, 60, 139.27]) {
+      const p = ASTRO.altAz(0, 90, la, lo, t);
+      worstAlt = Math.max(worstAlt, Math.abs(p.alt - la));
+      // 天の北極は真北。南半球では地平下なので方位は意味を持たない
+      if (la > 5) worstAz = Math.max(worstAz, Math.min(Math.abs(p.az), Math.abs(p.az - 360)));
+    }
+  }
+  ok(worstAlt < 1e-9, `celestial pole altitude equals observer latitude (max err ${worstAlt.toExponential(1)}°)`);
+  ok(worstAz < 1e-6, `celestial pole sits due north (max err ${worstAz.toExponential(1)}°)`);
+
+  // 天の南極は高度 = -緯度
+  const sp = ASTRO.altAz(0, -90, 35.633, 139.27, t);
+  near(sp.alt, -35.633, 1e-9, 'south celestial pole altitude is minus the latitude');
+
+  // 赤緯0の天体が子午線上に来たとき、高度は 90 - 緯度
+  {
+    const la = 35.0;
+    let best = null;
+    for (let h = 0; h < 24 * 60; h++) {          // 1分刻みで子午線通過を探す
+      const tt = t + h * 60000;
+      const p = ASTRO.altAz(0, 0, la, 0, tt);
+      if (!best || p.alt > best.alt) best = p;
+    }
+    near(best.alt, 90 - la, 0.05, 'a dec=0 object culminates at 90 - latitude');
+  }
+
+  // 太陽: 夏至の東京は正午に高く、冬至は低い(既知の季節変化)
+  {
+    const la = 35.68, lo = 139.77, noonUTC = 3 * 3600000;   // 12:00 JST
+    const jun = ASTRO.sunEq(Date.UTC(2026, 5, 21) + noonUTC);
+    const dec = ASTRO.sunEq(Date.UTC(2026, 11, 21) + noonUTC);
+    const aJ = ASTRO.altAz(jun.ra, jun.dec, la, lo, Date.UTC(2026, 5, 21) + noonUTC);
+    const aD = ASTRO.altAz(dec.ra, dec.dec, la, lo, Date.UTC(2026, 11, 21) + noonUTC);
+    ok(aJ.alt > 70 && aJ.alt < 82, `Tokyo summer-solstice noon sun is high (${aJ.alt.toFixed(1)}°)`);
+    ok(aD.alt > 25 && aD.alt < 35, `Tokyo winter-solstice noon sun is low (${aD.alt.toFixed(1)}°)`);
+    ok(aJ.alt - aD.alt > 40, 'the seasonal swing is about twice the obliquity');
+  }
+
+  // 月・惑星が有限値を返す(NaN混入の検出)
+  {
+    const m = ASTRO.moonEq(t);
+    ok(isFinite(m.ra) && isFinite(m.dec) && m.ra >= 0 && m.ra < 24, 'moon returns a sane equatorial position');
+    const pl = ASTRO.planets(t);
+    ok(pl.length >= 4 && pl.every(p => isFinite(p.ra) && isFinite(p.dec)),
+       `planets return sane positions (${pl.length})`);
+  }
+}
+
 console.log(`\n${count - fail}/${count} passed`);
 process.exit(fail ? 1 : 0);
