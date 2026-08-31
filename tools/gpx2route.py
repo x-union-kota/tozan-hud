@@ -731,6 +731,136 @@ def bake_vec(pts, ways, margin, tol, budget_kb):
             vec[k] = [[cls, enc_poly(s)] for (cls, s) in sorted(groups[k], key=lambda x: -x[0])]
     return vec
 
+# ---------- v3.2: 磁気偏角(WMM: 世界磁気モデル) ----------
+WMM_URL = 'https://www.ncei.noaa.gov/sites/default/files/2024-12/WMM2025COF.zip'
+WMM_TESTS = 'https://www.ncei.noaa.gov/sites/default/files/2025-02/WMM2025_TEST_VALUES.txt'
+WGS84_A, WGS84_F = 6378.137, 1.0 / 298.257223563     # km
+GEOMAG_A = 6371.2                                    # 地磁気の基準半径 km
+
+def load_wmm(path):
+    """WMM.COF(または WMM****COF.zip)を読む → {'epoch','N','g','h','dg','dh'}"""
+    if path.lower().endswith('.zip'):
+        import zipfile
+        z = zipfile.ZipFile(path)
+        names = [i.filename for i in z.infolist() if i.filename.upper().endswith('.COF')]
+        if not names: sys.exit(f'--wmm: zip の中に .COF が無い: {path}')
+        names.sort(key=len)                          # WMM.COF を優先
+        text = z.read(names[0]).decode('utf-8', errors='replace')
+    else:
+        text = open(path, encoding='utf-8', errors='replace').read()
+    epoch, N = None, 0
+    g = {}; h = {}; dg = {}; dh = {}
+    for ln in text.splitlines():
+        tk = ln.split()
+        if not tk: continue
+        if epoch is None:
+            try: epoch = float(tk[0])
+            except ValueError: continue
+            continue
+        if len(tk) < 6 or tk[0].startswith('9999'): continue
+        try:
+            n, m = int(tk[0]), int(tk[1])
+            g[(n, m)], h[(n, m)] = float(tk[2]), float(tk[3])
+            dg[(n, m)], dh[(n, m)] = float(tk[4]), float(tk[5])
+        except ValueError:
+            continue
+        N = max(N, n)
+    if epoch is None or not g: sys.exit(f'--wmm: 係数を読めなかった: {path}')
+    return {'epoch': epoch, 'N': N, 'g': g, 'h': h, 'dg': dg, 'dh': dh}
+
+def decimal_year(y, mo, d):
+    import datetime
+    d0 = datetime.date(y, 1, 1)
+    days = (datetime.date(y, mo, d) - d0).days
+    ylen = 366 if (y % 4 == 0 and (y % 100 != 0 or y % 400 == 0)) else 365
+    return y + days / ylen
+
+def wmm_field(coef, lat_deg, lon_deg, alt_km, year):
+    """WGS84測地座標の (lat, lon, 高度km) と十進年 → (X, Y, Z) nT (測地系: 北, 東, 下)"""
+    N = coef['N']
+    dt = year - coef['epoch']
+    phi, lam = math.radians(lat_deg), math.radians(lon_deg)
+    # 測地 → 地心球座標
+    e2 = WGS84_F * (2 - WGS84_F)
+    Rc = WGS84_A / math.sqrt(1 - e2 * math.sin(phi) ** 2)
+    p = (Rc + alt_km) * math.cos(phi)
+    z = (Rc * (1 - e2) + alt_km) * math.sin(phi)
+    r = math.hypot(p, z)
+    phip = math.asin(z / r)                          # 地心緯度
+    ct, st = math.sin(phip), math.cos(phip)          # cosθ, sinθ (θ=余緯度)
+
+    # Schmidt準正規化ルジャンドル陪関数 P と dP/dθ
+    P = [[0.0] * (N + 2) for _ in range(N + 2)]
+    dP = [[0.0] * (N + 2) for _ in range(N + 2)]
+    P[0][0], dP[0][0] = 1.0, 0.0
+    for n in range(1, N + 1):
+        for m in range(0, n + 1):
+            if n == m:
+                k = math.sqrt((2 * n - 1) / (2 * n)) if n > 1 else 1.0
+                P[n][n] = st * P[n - 1][n - 1] * k
+                dP[n][n] = (st * dP[n - 1][n - 1] + ct * P[n - 1][n - 1]) * k
+            else:
+                k1 = math.sqrt(float(n * n - m * m))
+                k2 = math.sqrt(float((n - 1) * (n - 1) - m * m)) if n - 1 >= m else 0.0
+                P[n][m] = ((2 * n - 1) * ct * P[n - 1][m] - k2 * P[n - 2][m]) / k1
+                dP[n][m] = ((2 * n - 1) * (ct * dP[n - 1][m] - st * P[n - 1][m])
+                            - k2 * dP[n - 2][m]) / k1
+
+    Xp = Yp = Zp = 0.0
+    ratio = GEOMAG_A / r
+    for n in range(1, N + 1):
+        rn = ratio ** (n + 2)
+        for m in range(0, n + 1):
+            gnm = coef['g'].get((n, m), 0.0) + dt * coef['dg'].get((n, m), 0.0)
+            hnm = coef['h'].get((n, m), 0.0) + dt * coef['dh'].get((n, m), 0.0)
+            cml, sml = math.cos(m * lam), math.sin(m * lam)
+            Xp += rn * (gnm * cml + hnm * sml) * dP[n][m]
+            Yp += rn * m * (gnm * sml - hnm * cml) * P[n][m]
+            Zp -= rn * (n + 1) * (gnm * cml + hnm * sml) * P[n][m]
+    if abs(st) > 1e-10: Yp /= st
+    else: Yp = 0.0                                    # 極: 特異。日本では通らない
+    # 地心 → 測地への回転
+    dphi = phip - phi
+    X = Xp * math.cos(dphi) - Zp * math.sin(dphi)
+    Z = Xp * math.sin(dphi) + Zp * math.cos(dphi)
+    return X, Yp, Z
+
+def wmm_declination(coef, lat_deg, lon_deg, alt_km, year):
+    """西偏を正で返す(このツール/アプリの --dec と同じ符号。地理院の表記と揃える)"""
+    X, Y, Z = wmm_field(coef, lat_deg, lon_deg, alt_km, year)
+    return -math.degrees(math.atan2(Y, X))
+
+def wmm_selftest(coef, path):
+    """NOAA公式のテスト値ファイルと突き合わせる。実装が正しいかの唯一の確かな検証。
+       書式: date height(km) lat lon X Y Z H F I D GV ... (# はコメント)"""
+    rows = []
+    for ln in open(path, encoding='utf-8', errors='replace'):
+        ln = ln.strip()
+        if not ln or ln.startswith('#'): continue
+        try: v = [float(x) for x in ln.split()]
+        except ValueError: continue
+        if len(v) >= 11: rows.append(v)
+    if not rows: sys.exit(f'--wmm-test: テスト値を1行も読めなかった: {path}')
+    wd = wx = 0.0
+    for v in rows:
+        X, Y, Z = wmm_field(coef, v[2], v[3], v[1], v[0])
+        D = math.degrees(math.atan2(Y, X))
+        wd = max(wd, abs(D - v[10]))
+        wx = max(wx, abs(X - v[4]), abs(Y - v[5]), abs(Z - v[6]))
+    print(f'WMM自己検証: {len(rows)}点 / 偏角の最大誤差 {wd:.4f}° / 成分の最大誤差 {wx:.2f} nT')
+    ok = wd <= 0.01 and wx <= 1.0
+    print('判定: ' + ('一致' if ok else '不一致 — 実装かCOFを確認する'))
+    return 0 if ok else 1
+
+def emit_wmm_fetch():
+    print('# 世界磁気モデル(WMM)の係数を手元にDLする。パブリックドメイン')
+    print(f'# 公式テスト値(実装検証用): {WMM_TESTS}')
+    print('set -e')
+    print(f'curl -sfSL -o WMM2025COF.zip {WMM_URL}')
+    print(f'curl -sfSL -o WMM_TEST_VALUES.txt {WMM_TESTS}')
+    print('echo "完了: gpx2route.py --wmm WMM2025COF.zip (zipのまま渡してよい)" >&2')
+    print('echo "  実装検証: gpx2route.py --wmm WMM2025COF.zip --wmm-test WMM_TEST_VALUES.txt" >&2')
+
 # ---------- v3: 区間ボス手動指定 ----------
 def parse_segs(specs, total):
     """"a-b:名前" のリスト。a,b は 0〜1 なら割合、それ以外は沿道距離m。"""
@@ -788,7 +918,7 @@ out geom;
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument('gpx')
+    ap.add_argument('gpx', nargs='?', help='入力GPX (--emit-wmm-fetch / --wmm-test 時は不要)')
     ap.add_argument('--id'); ap.add_argument('--name')
     ap.add_argument('--tol', type=float, default=6.0, help='簡略化許容誤差 m')
     ap.add_argument('--ct', default=None, help='"沿道距離m:累積CT分" のカンマ列。無指定は標準式で自動')
@@ -812,11 +942,25 @@ def main():
     ap.add_argument('--vec-margin', type=float, default=400.0, help='ベクタ採用: ルートからの距離 m (既定400)')
     ap.add_argument('--vec-kb', type=float, default=30.0, help='ベクタのサイズ予算 KB (既定30。超過分は優先度の低い線から落とす)')
     ap.add_argument('--seg', action='append', default=[], help='区間ボス "a-b:名前" (a,b: 0〜1=割合 / それ以外=m。複数可)')
-    ap.add_argument('--dec', type=float, default=7.5, help='磁気偏角(西偏+)。地理院の管区値を指定 (既定7.5)')
+    ap.add_argument('--dec', type=float, default=None, help='磁気偏角(西偏+)を手で与える。--wmm より優先。無指定で--wmmも無ければ7.5')
+    # v3.2 WMM
+    ap.add_argument('--emit-wmm-fetch', action='store_true', help='WMM係数のDLスクリプトを出力して終了')
+    ap.add_argument('--wmm', default=None, help='WMM係数 (.COF か WMM****COF.zip)。ルート重心の偏角を自動算出')
+    ap.add_argument('--date', default=None, help='偏角の基準日 YYYY-MM-DD (既定: 今日)')
+    ap.add_argument('--wmm-test', default=None, help='NOAA公式テスト値ファイルと突き合わせて終了(実装検証)')
     ap.add_argument('--domain', default='auto', choices=['auto', 'mountain', 'urban'])
     ap.add_argument('--max-reg', type=int, default=80, help='regの上限件数 (既定80)')
     ap.add_argument('--dump-json', default=None, help='(検証用) 厳密JSONも書き出す')
     a = ap.parse_args()
+
+    # GPXを要さないモードは先に処理する
+    if a.emit_wmm_fetch:
+        emit_wmm_fetch()
+        return
+    if a.wmm_test:
+        if not a.wmm: sys.exit('--wmm-test には --wmm も要る')
+        sys.exit(wmm_selftest(load_wmm(a.wmm), a.wmm_test))
+    if not a.gpx: sys.exit('入力GPXを指定する')
 
     trk, wraw = load_gpx(a.gpx)
     if len(trk) < 2: sys.exit('trkpt がありません')
@@ -900,6 +1044,34 @@ def main():
     segs = parse_segs(a.seg, total)
     domain = a.domain if a.domain != 'auto' else ('urban' if gain / max(total/1000, 0.1) < 15 else 'mountain')
 
+    # --- v3.2: 磁気偏角。--dec > --wmm > 既定7.5 の順で決める ---
+    dec, dec_note = 7.5, ''
+    if a.wmm:
+        import datetime
+        coef = load_wmm(a.wmm)
+        if a.date:
+            try: yy, mm, dd = [int(x) for x in a.date.split('-')]
+            except ValueError: sys.exit(f'--date の書式エラー: {a.date} (YYYY-MM-DD)')
+        else:
+            td = datetime.date.today(); yy, mm, dd = td.year, td.month, td.day
+        yr = decimal_year(yy, mm, dd)
+        cla = sum(p[0] for p in pts) / len(pts)
+        clo = sum(p[1] for p in pts) / len(pts)
+        cel = sum(p[2] for p in pts) / len(pts) / 1000.0
+        wdec = round(wmm_declination(coef, cla, clo, cel, yr), 2)
+        ep = int(coef['epoch'])
+        dec_note = (f'偏角: WMM{ep} 次数{coef["N"]} / 重心({cla:.3f},{clo:.3f}) {yy}-{mm:02d}-{dd:02d}'
+                    f' → 西偏 {wdec:.2f}°\n')
+        if not (coef['epoch'] <= yr <= coef['epoch'] + 5):
+            dec_note += (f'⚠ WMM{ep} の有効期間({ep}〜{ep + 5})の外。新しい係数に更新すること'
+                         f'(--emit-wmm-fetch)\n')
+        dec = wdec
+    if a.dec is not None:
+        if a.wmm: dec_note += f'  --dec {a.dec} を明示指定 → WMMの算出値を上書き\n'
+        dec = a.dec
+    elif not a.wmm:
+        dec_note = '偏角: 既定7.5°(--wmm で世界磁気モデルから自動算出できる)\n'
+
     vec, vec_note = {}, ''
     if ways and not a.no_vec:
         vec = bake_vec(pts, ways, a.vec_margin, a.tol, a.vec_kb)
@@ -915,18 +1087,18 @@ def main():
            f"cts:{json.dumps([[c[0],round(c[1])] for c in cts], separators=(',',':'))},"
            f"reg:{json.dumps(reg, ensure_ascii=False, separators=(',',':'))},"
            f"segs:{json.dumps(segs, ensure_ascii=False, separators=(',',':'))},"
-           f"dec:{a.dec},domain:'{domain}'}}")
+           f"dec:{dec},domain:'{domain}'}}")
     sys.stderr.write(f"点数 {len(trk)}→{len(pts)} / 距離 {total/1000:.1f}km / 獲得 {gain:.0f}m / domain {domain}\n"
                      f"reg {len(reg)}件 (峰{sum(1 for r in reg if r['t']=='peak')} POI{sum(1 for r in reg if r['t']!='peak')}"
                      f"{f' / 上限超過{dropped}件を切り捨て' if dropped else ''}) / segs {len(segs)} / サイズ約 {len(obj)/1024:.1f}KB\n"
-                     + snap_note + vec_note + dem_note)
+                     + snap_note + vec_note + dem_note + dec_note)
     if missing_vis:
         sys.stderr.write(f"⚠ --vis 指定がregに見つからない: {', '.join(missing_vis)} (綴りを確認)\n")
     if a.osm and not osm_items and not ways:
         sys.stderr.write("⚠ OSM JSONから対象が1件も取れていない(クエリ/ファイルを確認)\n")
     if a.dump_json:
         full = {'id': a.id, 'name': a.name, 'dist': round(total), 'gain': round(gain),
-                'wps': wps, 'reg': reg, 'segs': segs, 'dec': a.dec, 'domain': domain}
+                'wps': wps, 'reg': reg, 'segs': segs, 'dec': dec, 'domain': domain}
         json.dump(full, open(a.dump_json, 'w', encoding='utf-8'), ensure_ascii=False)
     print(obj + ',')
 

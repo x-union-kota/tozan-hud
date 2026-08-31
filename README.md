@@ -12,10 +12,10 @@ npm install jsdom                 # jsdom統合テスト用
 python3 tools/build.py            # src/* → dist/index.html
 node test/core.test.js            # 純ロジック 99件
 node test/app.smoke.js            # jsdom統合 74件
-python3 test/gpx2route.test.py    # 変換ツール 75件
+python3 test/gpx2route.test.py    # 変換ツール 92件
 ```
 
-3スイート全通過(99 + 74 + 75 = 248件)を確認してから作業を始める。
+3スイート全通過(99 + 74 + 92 = 265件)を確認してから作業を始める。
 
 ## 公開(GitHub Pages)
 
@@ -35,6 +35,7 @@ python3 tools/build.py && cp dist/index.html index.html && cp dist/sw.js sw.js
 | 街中の地図・ルート吸着・POI | OpenStreetMap | ODbL(© OpenStreetMap contributors) |
 | 星表 | HYG Database | CC BY-SA(要クレジット・データ部分は継承) |
 | 星座線 | Stellarium (modern skyculture) | GPL系 |
+| 磁気偏角 | NOAA 世界磁気モデル (WMM2025) | パブリックドメイン |
 | 天気 | Open-Meteo | — |
 
 星表と星座線は `tools/make_stars.py --emit-fetch` が出す手順で手元にDLして投入する。

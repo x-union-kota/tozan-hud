@@ -385,5 +385,95 @@ with tempfile.TemporaryDirectory() as td:
     ok('out geom' in r5.stdout, 'emit-query asks for way geometry (needed for vec and snap)')
     ok('"highway"' in r5.stdout and '"railway"' in r5.stdout, 'emit-query covers highway and railway ways')
 
+# ---- v3.2: 磁気偏角(WMM) ----
+# NOAAの係数ファイルはリポジトリに置かない(オフライン2段構え)ので、
+# 解析的に答えが分かる合成モデルで検証する。実データとの突き合わせは
+#   gpx2route.py --wmm WMM****COF.zip --wmm-test WMM_TEST_VALUES.txt
+# で誰でも再現できる(v3.2 実行時: 12点 / 偏角の最大誤差 0.0046° / 成分 0.05nT で一致)。
+print('[wmm]')
+
+def cof(lines, epoch=2025.0):
+    body = f'    {epoch}            SYNTH     01/01/2025\n' + '\n'.join(lines) + '\n' + '9' * 48 + '\n'
+    f = tempfile.NamedTemporaryFile('w', suffix='.COF', delete=False, encoding='utf-8')
+    f.write(body); f.close()
+    return f.name
+
+with tempfile.TemporaryDirectory() as td:
+    # ① 軸対称ダイポール(g10のみ): 偏角はどこでも0でなければならない
+    axial = G.load_wmm(cof(['  1  0  -30000.0       0.0        0.0        0.0']))
+    worst = max(abs(G.wmm_declination(axial, la, lo, 0.0, 2025.0))
+                for la in (-60, -20, 0, 35, 70) for lo in (-170, -60, 0, 45, 139, 175))
+    ok(worst < 1e-9, f'axial dipole gives zero declination everywhere (max {worst:.2e}°)')
+
+    # ダイポールの基本性質: 極の全磁力 = 赤道の2倍
+    Xe, Ye, Ze = G.wmm_field(axial, 0.0, 0.0, 0.0, 2025.0)
+    Xp, Yp, Zp = G.wmm_field(axial, 90.0, 0.0, 0.0, 2025.0)
+    Fe = math.sqrt(Xe * Xe + Ye * Ye + Ze * Ze)
+    Fp = math.sqrt(Xp * Xp + Yp * Yp + Zp * Zp)
+    # 楕円体なので極はわずかに地心に近く、比は2.00でなく2.02になる
+    ok(abs(Fp / Fe - 2.02) < 0.02, f'dipole: polar field is ~twice the equatorial one ({Fp/Fe:.3f})')
+    ok(Xe > 0 and abs(Ze) < abs(Xe) * 0.01,
+       'dipole at the equator points north with no vertical component')
+    ok(Zp > 0 and abs(Xp) < abs(Zp) * 0.01,
+       'dipole at the north pole points straight down')
+
+    # ② 傾いたダイポール(h11を足す): 偏角が経度で符号を変える。
+    #    h11 だけなら経度±90°がゼロ点、0°と180°が極値になる
+    tilt = G.load_wmm(cof(['  1  0  -30000.0       0.0        0.0        0.0',
+                           '  1  1       0.0    5000.0        0.0        0.0']))
+    d0 = G.wmm_declination(tilt, 0.0, 0.0, 0.0, 2025.0)
+    d180 = G.wmm_declination(tilt, 0.0, 180.0, 0.0, 2025.0)
+    dnull = G.wmm_declination(tilt, 0.0, 90.0, 0.0, 2025.0)
+    ok(abs(d0) > 1.0, f'a tilted dipole produces a real declination ({d0:.2f}°)')
+    ok(d0 * d180 < 0 and abs(abs(d0) - abs(d180)) < 1e-6,
+       'declination is antisymmetric across opposite meridians')
+    ok(abs(dnull) < 1e-9, 'an h11-only tilt has its null meridian at ±90°')
+
+    # ③ 永年変化: dg が効いて時間で動く
+    sv = G.load_wmm(cof(['  1  0  -30000.0       0.0        0.0        0.0',
+                         '  1  1       0.0    5000.0        0.0      500.0']))
+    s0 = G.wmm_declination(sv, 35.0, 139.0, 0.0, 2025.0)
+    s5 = G.wmm_declination(sv, 35.0, 139.0, 0.0, 2030.0)
+    ok(abs(s5 - s0) > 0.5, f'secular variation moves the declination over 5 years ({s0:.2f}° → {s5:.2f}°)')
+
+    # ④ 高度で値が変わる(球面調和の r 依存が効いている)
+    a0 = G.wmm_field(tilt, 35.0, 139.0, 0.0, 2025.0)
+    a100 = G.wmm_field(tilt, 35.0, 139.0, 100.0, 2025.0)
+    ok(abs(a100[0]) < abs(a0[0]), 'field weakens with altitude')
+
+    # ⑤ .zip のまま読める / 9999終端を係数として拾わない
+    import zipfile
+    zp = os.path.join(td, 'w.zip')
+    with zipfile.ZipFile(zp, 'w') as z:
+        z.write(cof(['  1  0  -30000.0       0.0        0.0        0.0']), 'WMM.COF')
+    zc = G.load_wmm(zp)
+    ok(zc['epoch'] == 2025.0 and zc['N'] == 1 and len(zc['g']) == 1,
+       'load_wmm reads a .zip and ignores the 9999 terminator')
+
+    # ⑥ CLI: --dec は --wmm を上書きする / 有効期間外は警告する
+    gpx = os.path.join(td, 'r.gpx'); make_gpx(gpx)
+    real = cof(['  1  0  -30000.0       0.0        0.0        0.0',
+                '  1  1   -1500.0    4500.0        0.0        0.0'])
+    dump = os.path.join(td, 'o.json')
+    r = run([gpx, '--id', 'w', '--name', 'W', '--wmm', real, '--date', '2026-06-01', '--dump-json', dump])
+    ok(r.returncode == 0 and '偏角: WMM2025' in r.stderr, 'stderr reports the computed declination')
+    auto = json.load(open(dump, encoding='utf-8'))['dec']
+    ok(auto != 7.5, f'declination comes from the model, not the hardcoded default ({auto})')
+
+    r = run([gpx, '--id', 'w', '--name', 'W', '--wmm', real, '--date', '2026-06-01',
+             '--dec', '6.25', '--dump-json', dump])
+    ok(json.load(open(dump, encoding='utf-8'))['dec'] == 6.25, '--dec overrides the model value')
+    ok('WMMの算出値を上書き' in r.stderr, 'the override is reported, not silent')
+
+    r = run([gpx, '--id', 'w', '--name', 'W', '--wmm', real, '--date', '2034-01-01'])
+    ok('有効期間' in r.stderr, 'a date outside the model validity window is flagged')
+
+    r = run([gpx, '--id', 'w', '--name', 'W', '--dump-json', dump])
+    ok(json.load(open(dump, encoding='utf-8'))['dec'] == 7.5, 'without --wmm the 7.5 default still applies')
+
+    r = run(['--emit-wmm-fetch'])
+    ok(r.returncode == 0 and 'ncei.noaa.gov' in r.stdout and 'TEST_VALUES' in r.stdout,
+       'emit-wmm-fetch prints both the coefficients and the official test values')
+
 print(f"\n{STEP[0] - len(FAILS)}/{STEP[0]} passed")
 sys.exit(1 if FAILS else 0)
