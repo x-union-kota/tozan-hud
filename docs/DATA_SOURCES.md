@@ -107,7 +107,7 @@ gpx2route.py のオフライン2段構えを拡張:
 
 ---
 
-## 優先3: 星表 — 手動69星 → HYG Database + Stellarium星座線【決定済み】
+## 優先3: 星表 — 手動69星 → HYG Database + Stellarium星座線【v3.2 実装済み】
 
 要件「300星+88星座」を公開データで満たす。※当初案はBSC5+d3-celestialだったが、
 HIP番号で両者が結合できる以下の組に決定(HYGはBSC5等を統合したCSVでパースも楽)。
@@ -122,6 +122,26 @@ HIP番号で両者が結合できる以下の組に決定(HYGはBSC5等を統合
    「星表: HYG Database (CC BY-SA) / 星座線: Stellarium」を追記
 3. 既存の和名テーブル(ベガ→こと座 等)は上書き辞書として維持
 - サイズ予算: stars.js は 15KB 以内目安(現行3.9KB)
+
+### 実装結果(v3.2)と、仕様からのズレ
+ラベル用288星(≤3.5等)+ 線の頂点専用444星 + 88星座695線分。**stars.js は 14.8KB**。
+
+**入手先が仕様と変わっていた(2026-08 実地確認)**:
+- Stellarium の `constellationship.fab` は**廃止**され、modern スカイカルチャは `index.json` に移行。
+  `constellations[].id = "CON modern Aql"` / `lines` は HIP番号の**折れ線**の配列(線分の対ではない)。
+  `make_stars.py` は index.json と旧 .fab の両方を判別して読む。
+  `https://raw.githubusercontent.com/Stellarium/stellarium/master/skycultures/modern/index.json`
+- HYG は `hyg/CURRENT/hygdata_v40.csv.gz`(13MB)。`.gz` のまま渡せる。
+  `https://raw.githubusercontent.com/astronexus/HYG-Database/main/hyg/CURRENT/hygdata_v40.csv.gz`
+- 両方とも `make_stars.py --emit-fetch` が出力する
+
+**等級カット例外の実測値**: 695線分のうち **520本(75%)** が3.5等より暗い星を参照している。
+ある夜の画面で言うと、描画中49本のうち **39本(80%)** が頂点用を落とすと消える。
+「あると良い」ではなく、無いと星座線機能が成立しない。
+
+**サイズ**: JSONの生配列だと23KBで、等級カットを下げても星が `s` から `v` へ移るだけで減らなかった
+(mag≤3.0 でも22.3KB)。座標は `CORE.decodePoly`、等級と線の添字は `CORE.decodeEle` で戻せる
+差分符号化にして14.8KB。アプリ側に新しいデコーダは足していない。
 
 ---
 

@@ -75,6 +75,29 @@ var CORE = (function () {
       vec: decodeVec(r.vec)
     };
   }
+  /* ---------- 星表(stars.js の圧縮形式)を展開する ----------
+     s: ラベル用 [名前, RA時, Dec度, 等級] / v: 線の頂点専用 [RA時, Dec度, 等級]
+     c: {略号: {n: 和名, l: [[i,j], ...]}} — 添字は s.concat(v) の連結空間。
+     線が参照する星は等級カットの例外として v に入っている。v を落とすと線が欠ける。 */
+  function buildStars(S) {
+    if (!S || !S.p) return { s: [], v: [], c: {} };
+    var pc = decodePoly(S.p), mg = decodeEle(S.m || ''), nm = S.nm || {};
+    var s = [], v = [], i;
+    for (i = 0; i < pc.length; i++) {
+      var m = (mg[i] || 0) / 10;
+      if (i < S.n) s.push([nm[i] || '', pc[i][0], pc[i][1], m]);
+      else v.push([pc[i][0], pc[i][1], m]);
+    }
+    var c = {}, k;
+    for (k in S.c) {
+      if (!Object.prototype.hasOwnProperty.call(S.c, k)) continue;
+      var f = decodeEle(S.c[k].l || ''), l = [];
+      for (i = 0; i + 1 < f.length; i += 2) l.push([f[i], f[i + 1]]);
+      c[k] = { n: S.c[k].n, l: l };
+    }
+    return { s: s, v: v, c: c };
+  }
+
   // 地図パネル用ベクタ {road|rail|water: [[クラス, 圧縮poly], ...]} を一度だけ展開する
   function decodeVec(v) {
     if (!v) return null;
@@ -448,6 +471,7 @@ var CORE = (function () {
 
   return {
     decodePoly: decodePoly, decodeEle: decodeEle,
+    buildStars: buildStars,
     demElev: demElev, contourStep: contourStep, gradPercentile: gradPercentile,
     marchingSquares: marchingSquares,
     hav: hav, bearing: bearing, destPoint: destPoint,

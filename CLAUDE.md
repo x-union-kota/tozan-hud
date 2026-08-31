@@ -9,7 +9,7 @@ Meta Ray-Ban Display(HUD+Neural Band)向けの登山/ランHUD。単一HTMLのWe
 
 ```bash
 python3 tools/build.py            # src/* → dist/index.html (単一HTML組み立て)
-node test/core.test.js            # 純ロジック 89件
+node test/core.test.js            # 純ロジック 99件
 node test/app.smoke.js            # jsdom統合 74件 (要: npm install jsdom / dist を先にビルド)
 python3 test/gpx2route.test.py    # 変換ツール 75件
 
@@ -40,7 +40,7 @@ cp dist/index.html index.html && cp dist/sw.js sw.js   # 公開用コピー(GitH
 src/core.js    純ロジック(距離・マッチャー・逸脱FSM・周回回転) — node直require可
 src/app.js     アプリ層(画面・状態・入力)。最大のファイル
 src/astro.js   天文計算(既知値と照合済み。触るなら要再照合)
-src/routes.js  src/stars.js  自動生成。手編集禁止
+src/routes.js  src/stars.js  自動生成。手編集禁止(星表は make_stars.py --emit-fetch → --hyg/--lines)
 tools/build.py         単一HTML組み立て
 tools/gpx2route.py     実GPX→v3ルート変換(OSM/DEMのオフライン投入・--emit-query / --emit-dem-fetch)
 dist/index.html dist/sw.js   ビルド成果物
@@ -49,8 +49,8 @@ dist/index.html dist/sw.js   ビルド成果物
 
 ## 残タスク(優先度順・詳細は HANDOFF.md §1)
 
-0. **データソース改定(最優先)** — `docs/DATA_SOURCES.md` が仕様。地形は陰影起伏図→標高タイル(数値DEM)へ切替、
-   urbanはOSM道路ベクタ焼き込み+`--snap-osm`、星表はHYG Database+Stellarium星座線、偏角はWMM。街中の地図品質問題の根はここ
+0. **データソース改定** — `docs/DATA_SOURCES.md` が仕様。
+   **優先1(地形DEM)・2(OSM道路ベクタ+snap)・3(星表)は v3.2 で完了。残るは優先4(偏角WMM)**
 1. 検証チェーン⑥⑦の手順書化(sim既知ゴースト照合・Stellarium照合)
 
 コンテナ/サンドボックスから Overpass API・DEMタイル等への外部アクセスは不可の前提で、

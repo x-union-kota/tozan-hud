@@ -1106,6 +1106,11 @@
     return identShell('<div class="abs" style="top:36px">' + svg + '</div>' + detail +
       '<div class="abs ctr" style="bottom:56px"><span class="sub dim">←→ ' + f + ' ／ ↑↓ 空レイヤ ／ 戻る</span></div>');
   }
+  var SKY = null;
+  function sky() {   // 星表は一度だけ展開してキャッシュ(圧縮形式 → s/v/c)
+    if (!SKY) SKY = CORE.buildStars(typeof STARS !== 'undefined' ? STARS : null);
+    return SKY;
+  }
   function scrIdentSky() {
     var ht = headingTrue();
     if (ht == null || !S.headingSettled || !S.lastFix) {
@@ -1115,29 +1120,36 @@
     var svg = '<svg viewBox="0 0 600 430" width="600" height="430">';
     svg += '<line x1="30" y1="400" x2="570" y2="400" stroke="#6b675c" stroke-width="2"/>';
     function sy(alt) { return 400 - Math.max(0, Math.min(70, alt)) * (340 / 70); }
+    var K = sky(), NS = K.s.length;
     var pos = {}, i, vis = 0;
-    for (i = 0; i < STARS.s.length; i++) {
-      var s = STARS.s[i];
-      var aa = ASTRO.altAz(s[1], s[2], me[0], me[1], t);
+    function place(idx, ra, dec) {
+      var aa = ASTRO.altAz(ra, dec, me[0], me[1], t);
       var dd = CORE.angDiff(aa.az, ht);
-      if (aa.alt < -1 || Math.abs(dd) > HALF) continue;
-      pos[i] = [stripX(dd, HALF), sy(aa.alt)];
+      if (aa.alt < -1 || Math.abs(dd) > HALF) return;
+      pos[idx] = [stripX(dd, HALF), sy(aa.alt)];
       vis++;
     }
+    for (i = 0; i < NS; i++) place(i, K.s[i][1], K.s[i][2]);
+    // 線の頂点専用の星も置く。等級カット外だが、落とすと星座線が途中で切れる
+    for (i = 0; i < K.v.length; i++) place(NS + i, K.v[i][0], K.v[i][1]);
     var ck; // 星座線(両端が視界内のもの)
-    for (ck in STARS.c) {
-      var lines = STARS.c[ck].l;
+    for (ck in K.c) {
+      var lines = K.c[ck].l;
       for (i = 0; i < lines.length; i++) {
         var pA = pos[lines[i][0]], pB = pos[lines[i][1]];
         if (pA && pB) svg += '<line x1="' + pA[0].toFixed(0) + '" y1="' + pA[1].toFixed(0) + '" x2="' + pB[0].toFixed(0) + '" y2="' + pB[1].toFixed(0) + '" stroke="#6b675c" stroke-width="1.5"/>';
       }
     }
     var named = [];
-    for (i = 0; i < STARS.s.length; i++) {
+    for (i = 0; i < NS; i++) {
       if (!pos[i]) continue;
-      var st = STARS.s[i], r = st[3] < 0.5 ? 5 : (st[3] < 1.6 ? 3.5 : 2.2);
+      var st = K.s[i], r = st[3] < 0.5 ? 5 : (st[3] < 1.6 ? 3.5 : 2.2);
       svg += '<circle cx="' + pos[i][0].toFixed(0) + '" cy="' + pos[i][1].toFixed(0) + '" r="' + r + '" fill="currentColor"/>';
-      if (st[3] < 1.3) named.push([pos[i], st[0]]);
+      if (st[3] < 1.3 && st[0]) named.push([pos[i], st[0]]);
+    }
+    for (i = 0; i < K.v.length; i++) {           // 頂点専用は最小の点。ラベルは出さない
+      var pv = pos[NS + i];
+      if (pv) svg += '<circle cx="' + pv[0].toFixed(0) + '" cy="' + pv[1].toFixed(0) + '" r="1.4" fill="currentColor"/>';
     }
     var pls = ASTRO.planets(t).concat([(function () { var m = ASTRO.moonEq(t); return { n: '月', ra: m.ra, dec: m.dec, t: 'moon' }; })()]);
     for (i = 0; i < pls.length; i++) {
@@ -1250,7 +1262,8 @@
       ' (←→切替) 東向きでα≈90ならα直が正</div>' +
       '<div>GPS: <span class="main-c">' + gpsLine + '</span></div>' + startLine +
       '<div>β:' + v(DIAG.beta) + ' γ:' + v(DIAG.gamma) + '  真方位:' + v(headingTrue()) + '°(偏角' + ((S.route && S.route.dec) || 7.5) + '西)</div>' +
-      '<div class="dim">reg:' + ((S.route && S.route.reg) ? S.route.reg.length : 0) + '件 星:' + (typeof STARS !== 'undefined' ? STARS.s.length : 0) + ' Lap:' + S.lap + '</div>' +
+      '<div class="dim">reg:' + ((S.route && S.route.reg) ? S.route.reg.length : 0) + '件 星:' + (sky().s.length + sky().v.length) + '(線用' + sky().v.length + ') Lap:' + S.lap + '</div>' +
+      '<div class="dim">星表: HYG Database (CC BY-SA) ／ 星座線: Stellarium</div>' +
       '</div></div>';
   }
   function startSelHtml() {

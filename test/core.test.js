@@ -286,5 +286,58 @@ console.log('[vec]');
   ok(empty.vec === null, 'a vec with no usable line decodes to null');
 }
 
+/* 11. 星表(v3.2 優先3) — 等級カット例外が効いているか */
+console.log('[stars]');
+{
+  const starsSrc = fs.readFileSync(path.join(__dirname, '../src/stars.js'), 'utf8');
+  const STARS = eval(starsSrc + '; STARS');
+  const K = CORE.buildStars(STARS);
+  const NS = K.s.length, NV = K.v.length;
+
+  ok(NS > 0, `label-tier stars decoded (${NS})`);
+  ok(Object.keys(K.c).length > 0, `constellations decoded (${Object.keys(K.c).length})`);
+
+  let badRa = 0, badDec = 0, badMag = 0;
+  for (const [, ra, dec, mag] of K.s) {
+    if (!(ra >= 0 && ra < 24)) badRa++;
+    if (!(dec >= -90 && dec <= 90)) badDec++;
+    if (!(mag > -30 && mag < 20)) badMag++;
+  }
+  for (const [ra, dec, mag] of K.v) {
+    if (!(ra >= 0 && ra < 24)) badRa++;
+    if (!(dec >= -90 && dec <= 90)) badDec++;
+    if (!(mag > -30 && mag < 20)) badMag++;
+  }
+  ok(badRa === 0 && badDec === 0 && badMag === 0, 'every decoded star has sane RA / Dec / magnitude');
+
+  // 線の添字は s.concat(v) の連結空間に収まっていること。溢れたら線が消える
+  let total = 0, refsVertex = 0, outOfRange = 0;
+  for (const k of Object.keys(K.c)) {
+    for (const [a2, b2] of K.c[k].l) {
+      total++;
+      if (a2 >= NS + NV || b2 >= NS + NV || a2 < 0 || b2 < 0) outOfRange++;
+      if (a2 >= NS || b2 >= NS) refsVertex++;
+    }
+  }
+  ok(outOfRange === 0, 'every constellation-line index resolves inside s.concat(v)');
+  ok(total > 0, `constellation lines decoded (${total})`);
+
+  // 精選版(v が空)なら 0、外部星表を入れたら大半が頂点専用を参照するはず
+  if (NV > 0) {
+    ok(refsVertex > total * 0.5,
+       `most lines need the below-cut vertex stars (${refsVertex}/${total} = ${Math.round(100 * refsVertex / total)}%)`);
+    ok(K.v.every(v => v.length === 3), 'vertex-only rows carry no name (geometry only)');
+  } else {
+    ok(refsVertex === 0, 'curated table needs no vertex-only stars');
+    ok(true, 'skip: no vertex tier in the curated table');
+  }
+
+  // 名前はラベル用にしか付かない
+  ok(K.s.some(x => x[0]), 'at least some label-tier stars carry a name');
+
+  ok(CORE.buildStars(null).s.length === 0, 'buildStars(null) degrades to an empty sky');
+  ok(CORE.buildStars({}).s.length === 0, 'buildStars({}) degrades to an empty sky');
+}
+
 console.log(`\n${count - fail}/${count} passed`);
 process.exit(fail ? 1 : 0);
