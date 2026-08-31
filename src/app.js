@@ -37,6 +37,7 @@
     dev: null, suppressUntil: 0, graceUntil: 0,
     heading: null, headingReal: 0, headingSettled: false, hmode: (lsGet('thud.hmode') || 'alpha'),
     pitch: null, pitchReal: 0,   // 仰角(0=水平, +=見上げ)。空レイヤの高度帯がこれに追従する
+    posHist: [], identLock: null,   // C-4: 直近の生GPS / C-6: 注視ロック中の対象
     sun: null, sunNotice: false,
     wx: null, wxTriedMs: 0,
     track: [], lastTrackMs: 0,
@@ -407,6 +408,8 @@
   function onFix(f) {
     var prev = S.lastFix;
     S.lastFix = f; S.lastFixReal = Date.now();
+    S.posHist.push([Date.now(), f.la, f.lo, f.acc]);          // C-4: 実進行ベクトル用
+    while (S.posHist.length && Date.now() - S.posHist[0][0] > 20000) S.posHist.shift();
     if (f.acc != null && f.acc > 75) { return; }         // 低精度は生存確認のみ(F2/判定不使用)
     var m = CORE.matchLocal(S.route, S.cursor, f.la, f.lo, S.along); // 初回もalong=0起点でバイアス(ピストンの往復同一線形対策)
     if (!m) return;
@@ -820,6 +823,23 @@
       return;
     }
     if (S.mode === 'ident') {
+      if (k === 'Enter' && S.identLayer === 'ground') {        // C-6: 中央±8°の対象をロック
+        var ht2 = headingTrue();
+        if (ht2 != null && S.headingSettled) {
+          var its = identItems() || [], best = null;
+          for (var ii = 0; ii < its.length; ii++) {
+            var dd2 = Math.abs(CORE.angDiff(its[ii].brg, ht2));
+            if (dd2 <= 8 && (!best || dd2 < best.d)) best = { d: dd2, it: its[ii] };
+          }
+          if (best) {
+            S.identLock = { n: best.it.n, brg: best.it.brg, dist: best.it.dist,
+                            el: best.it.el, vis: best.it.vis };
+            wpFlash(best.it.n + ' をロック');
+          } else wpFlash('中央±8°に対象がありません');
+        }
+        render(); return;
+      }
+      if (k === 'Escape' && S.identLock) { S.identLock = null; render(); return; }  // まず解除
       if (k === 'ArrowUp' || k === 'ArrowDown') {
         S.identLayer = (S.identLayer === 'ground') ? 'sky' : 'ground';
         setNight(S.identLayer === 'sky' && S.sun && S.sun.sunset && nowMs() > S.sun.sunset.getTime());
@@ -828,7 +848,7 @@
       if ((k === 'ArrowLeft' || k === 'ArrowRight') && S.identLayer === 'ground') {
         S.identFilter = (S.identFilter + (k === 'ArrowRight' ? 1 : 2)) % 3; render(); return;
       }
-      if (k === 'Escape') { setNight(false); goBack(); }
+      if (k === 'Escape') { setNight(false); S.identLock = null; goBack(); }
       return;
     }
     if (S.mode === 'cere') {
@@ -973,7 +993,11 @@
     return '<svg id="' + id + '" viewBox="0 0 100 100" width="150" height="150">' +
       '<g id="' + id + '-g" transform="rotate(0 50 50)">' +
       '<path d="M50 6 L74 62 L50 48 L26 62 Z" fill="currentColor"/>' +
-      '</g></svg>';
+      '</g>' +
+      // C-4: 実際の移動方向。矢印(ルート先)と重なっていれば安心、離れ始めたら予兆
+      '<g id="' + id + '-t" transform="rotate(0 50 50)" style="display:none">' +
+      '<polygon points="50,0 46,9 54,9" fill="#f5f1e6"/></g>' +
+      '</svg>';
   }
   var arrowPending = false;
   function scheduleArrow() {
@@ -1008,6 +1032,97 @@
     var brg = CORE.bearing([S.lastFix.la, S.lastFix.lo], [tgt.pt.la, tgt.pt.lo]);
     var rot = ((brg - S.heading) % 360 + 360) % 360;
     g.setAttribute('transform', 'rotate(' + rot.toFixed(0) + ' 50 50)');
+    var tg = document.getElementById('arw-t');
+    if (tg) {
+      var tb = travelBearing();
+      if (tb == null) tg.style.display = 'none';
+      else {
+        tg.style.display = 'block';
+        tg.setAttribute('transform', 'rotate(' + (((tb - S.heading) % 360 + 360) % 360).toFixed(0) + ' 50 50)');
+      }
+    }
+  }
+
+  /* ---- C-4: 実進行ベクトル ---- */
+  function travelBearing() {
+    var h = S.posHist;
+    if (!h.length) return null;
+    var now = Date.now(), oldest = null;
+    for (var i = 0; i < h.length; i++) { if (now - h[i][0] <= 15000) { oldest = h[i]; break; } }
+    var newest = h[h.length - 1];
+    if (!oldest || oldest === newest) return null;
+    if (newest[3] != null && newest[3] > 50) return null;      // 精度不足なら出さない
+    var dt = (newest[0] - oldest[0]) / 1000;
+    var d = CORE.hav([oldest[1], oldest[2]], [newest[1], newest[2]]);
+    if (dt <= 0 || d < 10 || d / dt < 0.5) return null;         // 停止・微動は出さない
+    return CORE.bearing([oldest[1], oldest[2]], [newest[1], newest[2]]);
+  }
+  /* ---- C-9: コース偏差バー(数字は出さない) ---- */
+  function crossTrackHtml() {
+    if (!S.proj || !S.lastFix) return '';
+    if (S.dev && S.dev.state.deviated) return '';               // ルート外は既存フローに任せる
+    var x = CORE.signedCrossTrack(S.route, S.along, S.lastFix.la, S.lastFix.lo);
+    if (x == null || Math.abs(x) > 50) return '';
+    var W = 180, px = 300 + Math.max(-1, Math.min(1, x / 50)) * (W / 2);
+    return '<svg viewBox="0 0 600 14" width="600" height="14">' +
+      '<line x1="' + (300 - W / 2) + '" y1="7" x2="' + (300 + W / 2) + '" y2="7" stroke="#6b675c" stroke-width="2"/>' +
+      '<line x1="300" y1="2" x2="300" y2="12" stroke="#6b675c" stroke-width="2"/>' +
+      '<circle cx="' + px.toFixed(0) + '" cy="7" r="5" fill="#ffd83b"/></svg>';
+  }
+
+  /* ---- C-5: 方位テープ(メイン常設) ----
+     透視モードは「このテープを±30°に拡大して対象名を乗せたもの」という位置づけ。
+     見た目を連続させるため、目盛の描き方は同じにしてある。 */
+  function tapeMarkers(ht) {
+    var out = [];
+    if (!S.lastFix || !S.route) return out;
+    var me = [S.lastFix.la, S.lastFix.lo];
+    var w = nextWp();
+    if (w) {
+      var wp = CORE.routePointAt(S.route, w.d);
+      out.push({ n: w.n, brg: CORE.bearing(me, [wp.la, wp.lo]), c: '#ffd83b' });
+    }
+    var gp = CORE.routePointAt(S.route, S.route.total);
+    out.push({ n: 'ゴール', brg: CORE.bearing(me, [gp.la, gp.lo]), c: '#f5f1e6' });
+    if (S.sun && S.sun.sunset) {
+      var ss = ASTRO.sunAltAz(me[0], me[1], S.sun.sunset.getTime());
+      out.push({ n: '日没', brg: ss.az, c: '#f5a11c' });
+    }
+    var gA = ghostAlongNow();
+    if (gA != null) {
+      var g = CORE.routePointAt(S.route, gA);
+      out.push({ n: 'G', brg: CORE.bearing(me, [g.la, g.lo]), c: '#6b675c' });
+    }
+    if (S.home) out.push({ n: '家', brg: CORE.bearing(me, [S.home.la, S.home.lo]), c: '#6b675c' });
+    return out;
+  }
+  function headingTape() {
+    var H = 50, HALF = 45, W = 600;
+    var ht = headingTrue();
+    if (ht == null || !S.headingSettled) {
+      return '<div class="abs" style="top:0;height:' + H + 'px"><div class="ctr" style="padding-top:14px">' +
+        '<span class="sub dim">方位' + (S.heading == null ? '取得待ち' : '較正中') + '…</span></div></div>';
+    }
+    var svg = '<svg viewBox="0 0 600 ' + H + '" width="600" height="' + H + '">';
+    for (var t = -HALF; t <= HALF; t += 15) {          // 15°刻みの目盛
+      var x = (300 + t * (W / 2 - 20) / HALF).toFixed(0);
+      var lbl = Math.round(((ht + t) % 360 + 360) % 360);
+      var mid = (t === 0);
+      svg += '<line x1="' + x + '" y1="30" x2="' + x + '" y2="' + (mid ? 44 : 40) +
+        '" stroke="' + (mid ? '#ffd83b' : '#6b675c') + '" stroke-width="' + (mid ? 3 : 2) + '"/>';
+      svg += '<text x="' + x + '" y="' + H + '" fill="' + (mid ? '#ffd83b' : '#6b675c') +
+        '" font-size="' + (mid ? 18 : 15) + '" text-anchor="middle" font-family="inherit">' + lbl + '°</text>';
+    }
+    var mk = tapeMarkers(ht);
+    for (var i = 0; i < mk.length; i++) {
+      var d = CORE.angDiff(mk[i].brg, ht);
+      if (Math.abs(d) > HALF) continue;
+      var mx = (300 + d * (W / 2 - 20) / HALF).toFixed(0);
+      svg += '<polygon points="' + mx + ',28 ' + (+mx - 5) + ',18 ' + (+mx + 5) + ',18" fill="' + mk[i].c + '"/>';
+      svg += '<text x="' + mx + '" y="15" fill="' + mk[i].c + '" font-size="15" text-anchor="middle" font-family="inherit">' + esc(mk[i].n) + '</text>';
+    }
+    svg += '</svg>';
+    return '<div class="abs" style="top:0;height:' + H + 'px;line-height:0">' + svg + '</div>';
   }
 
   /* ---- C-1: 引き返し限界 ---- */
@@ -1026,7 +1141,7 @@
     var body = m <= 0
       ? '引き返し限界 ' + CORE.fmtClock(new Date(t.at)) + ' <span class="acc1">超過</span>'
       : '引き返し限界 ' + CORE.fmtClock(new Date(t.at)) + ' (あと' + m + '分)';
-    return '<div class="abs ctr" style="top:500px"><span class="sub ' + cls + '">' + body + '</span></div>';
+    return '<div class="abs ctr" style="top:470px"><span class="sub ' + cls + '">' + body + '</span></div>';
   }
 
   /* ---- C-2: ゴーストとの時間差(デルタバー) ---- */
@@ -1069,9 +1184,24 @@
   }
 
   /* ---- C-3: エッジキュー(±30°の窓の外にある対象) ---- */
+  function lockHtml(ht) {
+    var L = S.identLock;
+    if (!L) return '';
+    var d = CORE.angDiff(L.brg, ht);
+    var side = d < 0 ? '←' : '→';
+    return '<div class="abs ctr" style="top:352px"><span class="ct1 main-c" ' +
+      'style="border:2px solid #ffd83b;border-radius:6px;padding:4px 12px">' +
+      esc(L.n) + (L.el != null ? ' ' + L.el + 'm' : '') +
+      (L.dist != null ? ' ' + CORE.fmtKm(L.dist) : '') +
+      ' ' + side + Math.abs(Math.round(d)) + '°</span></div>';
+  }
   function edgeCues(ht) {
     var items = identItems() || [], out = { l: null, r: null };
     var cand = [];
+    if (S.identLock) {                                        // ロック中の対象が最優先
+      var ld = CORE.angDiff(S.identLock.brg, ht);
+      if (Math.abs(ld) > 30) cand.push({ n: S.identLock.n, d: ld, pri: -1, abs: Math.abs(ld) });
+    }
     for (var i = 0; i < items.length; i++) {
       var d = CORE.angDiff(items[i].brg, ht);
       if (Math.abs(d) <= 30) continue;                  // 窓の中はキューにしない
@@ -1093,9 +1223,10 @@
   }
   function edgeCueHtml(ht) {
     var e = edgeCues(ht), h = '';
-    if (e.l) h += '<div class="abs" style="top:300px;left:8px;text-align:left"><span class="sub dim">← ' +
+    // 方位目盛(y≈314)より下、詳細行(352)より上に置く
+    if (e.l) h += '<div class="abs" style="top:322px;left:8px;text-align:left"><span class="sub dim">← ' +
       esc(e.l.n) + ' ' + Math.round(e.l.abs) + '°</span></div>';
-    if (e.r) h += '<div class="abs" style="top:300px;right:8px;left:auto;text-align:right"><span class="sub dim">' +
+    if (e.r) h += '<div class="abs" style="top:322px;right:8px;left:auto;text-align:right"><span class="sub dim">' +
       esc(e.r.n) + ' ' + Math.round(e.r.abs) + '° →</span></div>';
     return h;
   }
@@ -1226,8 +1357,10 @@
       detail = '<div class="abs ctr" style="top:352px"><span class="ct1 dim">この方向に登録対象なし</span></div>';
     }
     var f = ['全部', '山', '施設'][S.identFilter];
-    return identShell('<div class="abs" style="top:36px">' + svg + '</div>' + detail + edgeCueHtml(ht) +
-      '<div class="abs ctr" style="bottom:56px"><span class="sub dim">←→ ' + f + ' ／ ↑↓ 空レイヤ ／ 戻る</span></div>');
+    return identShell('<div class="abs" style="top:36px">' + svg + '</div>' +
+      (S.identLock ? lockHtml(ht) : detail) + edgeCueHtml(ht) +
+      '<div class="abs ctr" style="bottom:56px"><span class="sub dim">←→ ' + f +
+      ' ／ ↑↓ 空レイヤ ／ ' + (S.identLock ? '戻るで解除' : 'ピンチでロック') + '</span></div>');
   }
   var SKY = null;
   function sky() {   // 星表は一度だけ展開してキャッシュ(圧縮形式 → s/v/c)
@@ -1425,14 +1558,19 @@
     // C-2: ゴーストの「後方○m」はデルタバー(時間差)に置き換える。距離より時間のほうが行動に効く
     var dbar = (band.ghost || !band.s) ? ghostDeltaHtml() : '';
     var bandHtml = dbar
-      ? '<div class="abs z-band">' + dbar + '</div>'
+      ? '<div class="abs z-band" style="line-height:0;padding-top:3px">' + dbar + '</div>'
       : '<div class="abs z-band ' + band.c + '">' + esc(band.s) + '</div>';
     var ov = ghostOverlayHtml();
-    if (S.panel === 0) return head + panelProgress() + turnaroundHtml() + ov + bandHtml;
-    if (S.panel === 1) return head + panelProfile() + ov + bandHtml;
-    if (S.panel === 2) return head + panelMap() + ov + bandHtml;
-    if (S.panel === 3) return head + panelWp() + bandHtml;
-    return head + panelWx() + bandHtml;
+    // C-5: 方位テープを最上段に置き、既存の中身はまとめて下げる(ラッパ1枚で済ませる)
+    var tape = headingTape();
+    var wrap = function (inner) {
+      return tape + '<div style="position:absolute;left:0;right:0;top:46px;bottom:0">' + inner + '</div>';
+    };
+    if (S.panel === 0) return wrap(head + panelProgress() + turnaroundHtml() + ov) + bandHtml;
+    if (S.panel === 1) return wrap(head + panelProfile() + ov) + bandHtml;
+    if (S.panel === 2) return wrap(head + panelMap() + ov) + bandHtml;
+    if (S.panel === 3) return wrap(head + panelWp()) + bandHtml;
+    return wrap(head + panelWx()) + bandHtml;
   }
   function staleInfo() {
     var s = S.lastGoodFixReal ? (Date.now() - S.lastGoodFixReal) / 1000 : Infinity;
@@ -1476,7 +1614,8 @@
       : '↑' + Math.round(rem.gain) + 'm';
     return '<div class="abs z-arrow ctr"><div class="arrow-wrap main-c" id="arw-wrap">' + arrowSvg('arw') + '</div>' +
       '<div class="arrow-lbl dim" id="arw-na" style="display:none">方位取得不可</div>' +
-      '<div class="arrow-lbl dim">' + (S.dev && S.dev.state.deviated ? '<span class="acc1">復帰方向</span>' : 'ルート先') + '</div></div>' +
+      '<div class="arrow-lbl dim">' + (S.dev && S.dev.state.deviated ? '<span class="acc1">復帰方向</span>' : 'ルート先') + '</div>' +
+      '<div style="line-height:0">' + crossTrackHtml() + '</div></div>' +
       '<div class="abs z-big ctr"><div class="big1 ' + (st.sec > 90 ? 'dim' : 'main-c') + '">残 ' + CORE.fmtKm(rem.dist) + '</div>' +
       '<div class="big2 ' + (st.sec > 90 ? 'dim' : 'main-c') + '">' + big2 +
       (st.txt ? ' <span class="sub acc2">' + st.txt + '</span>' : '') + '</div></div>' +
@@ -2026,5 +2165,5 @@
       expectCt: (S.ghostSrc === 'ct' && r) ? Math.round(CORE.ctInverse(r, el)) : null
     };
   }
-  if (typeof window !== 'undefined') window.__THUD = { S: S, Geo: Geo, render: render, nowMs: nowMs, checkLapAndSegs: checkLapAndSegs, ghostAlongNow: ghostAlongNow, dumpSky: dumpSky, dumpGhost: dumpGhost };
+  if (typeof window !== 'undefined') window.__THUD = { S: S, Geo: Geo, render: render, nowMs: nowMs, checkLapAndSegs: checkLapAndSegs, ghostAlongNow: ghostAlongNow, dumpSky: dumpSky, dumpGhost: dumpGhost, updateArrow: updateArrow };
 })();

@@ -167,6 +167,96 @@ const sleep = (ms) => new Promise(r => setTimeout(r, ms));
   key('ArrowDown');                   // 診断を閉じる
   ok(/ピンチで自宅削除/.test(text()), 'ready hint switches to deletion once registered');
 
+  // ---- SPEC C-5 方位テープ / C-6 注視ロック / C-4 実進行ベクトル / C-9 CDI ----
+  {
+    const S7 = T().S, R = S7.route;
+    const keep = { mode: S7.mode, panel: S7.panel, tracking: S7.tracking, lock: S7.identLock };
+    S7.mode = 'main'; S7.panel = 0; S7.tracking = true; S7.wpFlashUntil = 0;
+    S7.lastFix = { la: R.pts[0][0], lo: R.pts[0][1], acc: 8, t: Date.now() };
+    S7.lastFixReal = Date.now(); S7.proj = { dist: 5 }; S7.along = R.total * 0.3;
+    S7.heading = 0; S7.headingReal = Date.now(); S7.headingSettled = true;
+    T().render();
+    const html0 = window.document.getElementById('app').innerHTML;
+
+    // C-5: テープが常設で、方位に連動する
+    ok(/polygon|<line/.test(html0) && /°<\/text>/.test(html0), 'C-5: the heading tape is drawn');
+    // 600×600固定は絶対制約。インラインSVGは行ボックスを押し広げるので毎回見る
+    ok(window.document.body.scrollHeight <= 600,
+       `C-5: the layout still fits the 600px box (${window.document.body.scrollHeight})`);
+    const ticks = (h) => (h.match(/>(\d+)°<\/text>/g) || []).join(',');
+    const t0 = ticks(html0);
+    S7.heading = 90; S7.headingReal = Date.now(); T().render();
+    const t90 = ticks(window.document.getElementById('app').innerHTML);
+    ok(t0 !== t90 && t0.length > 0, 'C-5: the tape scale follows the heading');
+
+    // 目盛は15°刻みで、間隔は方位差に比例する
+    {
+      const nums = (window.document.getElementById('app').innerHTML.match(/>(\d+)°<\/text>/g) || [])
+        .map(x => +x.replace(/\D/g, ''));
+      let steps = [];
+      for (let i = 1; i < nums.length; i++) steps.push(((nums[i] - nums[i - 1]) % 360 + 360) % 360);
+      ok(steps.length >= 4 && steps.every(x => x === 15), `C-5: ticks are every 15° (${steps.join(',')})`);
+    }
+
+    // 較正できていなければテープは数字を出さない
+    S7.headingSettled = false; T().render();
+    ok(/方位(較正中|取得待ち)/.test(text()), 'C-5: an uncalibrated tape says so instead of showing a heading');
+    S7.headingSettled = true; T().render();
+
+    // C-9: 中央から右へ20mずらすとバーの点が右へ、50m超で消える
+    const mid = window.CORE.routePointAt(R, S7.along);
+    const a2 = window.CORE.routePointAt(R, S7.along - 25), b2 = window.CORE.routePointAt(R, S7.along + 25);
+    const brg = window.CORE.bearing([a2.la, a2.lo], [b2.la, b2.lo]);
+    const cx = () => { const m = window.document.getElementById('app').innerHTML.match(/<circle cx="(\d+)" cy="7"/); return m ? +m[1] : null; };
+    S7.lastFix = { la: mid.la, lo: mid.lo, acc: 8, t: Date.now() }; T().render();
+    const c0 = cx();
+    const right = window.CORE.destPoint(mid.la, mid.lo, (brg + 90) % 360, 20);
+    S7.lastFix = { la: right[0], lo: right[1], acc: 8, t: Date.now() }; T().render();
+    const cR = cx();
+    const left = window.CORE.destPoint(mid.la, mid.lo, (brg + 270) % 360, 20);
+    S7.lastFix = { la: left[0], lo: left[1], acc: 8, t: Date.now() }; T().render();
+    const cL = cx();
+    ok(c0 != null && cR != null && cL != null, 'C-9: the cross-track bar is drawn on route');
+    ok(cR > c0 && cL < c0, `C-9: drifting right moves the dot right (${cL} < ${c0} < ${cR})`);
+    const far = window.CORE.destPoint(mid.la, mid.lo, (brg + 90) % 360, 80);
+    S7.lastFix = { la: far[0], lo: far[1], acc: 8, t: Date.now() }; T().render();
+    ok(cx() === null, 'C-9: beyond 50m the bar goes out (the off-route flow takes over)');
+    ok(!/\d+m/.test((text().match(/コース偏差[^\n]*/) || [''])[0]), 'C-9: no numbers are printed for the deviation');
+
+    // C-4: 実進行ベクトルは移動が足りなければ出ない
+    S7.posHist = []; T().render(); T().updateArrow && T().updateArrow();
+    const tri = () => window.document.getElementById('arw-t');
+    ok(!tri() || tri().style.display === 'none', 'C-4: no travel vector without movement');
+    const now = Date.now();
+    const p1 = window.CORE.routePointAt(R, S7.along), p2 = window.CORE.routePointAt(R, S7.along + 60);
+    S7.posHist = [[now - 12000, p1.la, p1.lo, 8], [now, p2.la, p2.lo, 8]];
+    S7.lastFix = { la: p2.la, lo: p2.lo, acc: 8, t: now };
+    T().render();
+    ok(tri() && tri().style.display !== 'none', 'C-4: moving along the route shows the travel vector');
+    S7.posHist = [[now - 12000, p1.la, p1.lo, 8], [now, p1.la, p1.lo, 8]];
+    T().render();
+    ok(!tri() || tri().style.display === 'none', 'C-4: standing still hides it again (no noise when stopped)');
+
+    // C-6: 透視で中央±8°の対象をロックし、首を回しても残る
+    S7.mode = 'ident'; S7.identLayer = 'ground'; S7.identFilter = 0; S7.identLock = null;
+    S7.lastFix = { la: R.pts[0][0], lo: R.pts[0][1], acc: 8, t: Date.now() };
+    const items = (R.reg || []).filter(e => e.n);
+    const target = items[0];
+    const brgT = window.CORE.bearing([S7.lastFix.la, S7.lastFix.lo], [target.la, target.lo]);
+    S7.heading = ((brgT + (R.dec || 7.5)) % 360 + 360) % 360;   // 真方位が対象を向くように
+    S7.headingReal = Date.now(); T().render();
+    key('Enter');
+    ok(S7.identLock && S7.identLock.n === target.n, `C-6: pinching locks the centred target (${S7.identLock && S7.identLock.n})`);
+    ok(text().includes(target.n), 'C-6: the locked target is shown');
+    S7.heading = (S7.heading + 100) % 360; S7.headingReal = Date.now(); T().render();
+    ok(text().includes(target.n), 'C-6: it stays on screen after turning the head away');
+    key('Escape');
+    ok(S7.identLock === null && S7.mode === 'ident', 'C-6: back releases the lock without leaving the layer');
+
+    S7.mode = keep.mode; S7.panel = keep.panel; S7.tracking = keep.tracking;
+    S7.identLock = keep.lock; S7.posHist = []; T().render();
+  }
+
   // ---- SPEC C-1/C-2/C-3 ----
   {
     const S6 = T().S, R = S6.route;

@@ -23,7 +23,7 @@ body {
 .z-arrow { top: 30px; height: 158px; }
 .z-big   { top: 192px; }
 .z-eta   { top: 366px; }
-.z-ct    { top: 466px; }
+.z-ct    { top: 440px; }   /* C-5の方位テープぶん(46px)下がるので、内側を詰めた */
 .z-band  { bottom: 0; height: 52px; line-height: 52px; font-size: 21px;
            text-align: center; }
 
