@@ -607,6 +607,40 @@ const sleep = (ms) => new Promise(r => setTimeout(r, ms));
     S9.tracking = false; S9.mode = 'select'; S9.freeSel = false; S9.routeIdx = 0; T().render();
   }
 
+  // ---- その場モード 段階2: 目標距離ごとの目標ペース(等速ゴースト) ----
+  {
+    const S10 = T().S;
+    S10.routeIdx = T().nRoutes; T().render();
+    key('Enter'); await sleep(400);
+    ok(S10.mode === 'ready' && S10.freeSel === true, 'ここから → ready (free)');
+    S10.freeGoal = 0; T().render();
+    key('ArrowUp');
+    ok(S10.paceEdit == null, 'no goal distance → no pace layer (a hint instead)');
+    key('ArrowRight');                                        // 5km
+    ok(S10.freeGoal === 5000 && S10.paceGoal == null, '→ selects 5km (pace unset)');
+    key('ArrowUp');
+    ok(S10.paceEdit === 30 && /5km の目標タイム/.test(text()) && /6:00\/km/.test(text()), '↑ opens the pace layer at 30 min (6:00/km × 5km)');
+    key('ArrowRight'); key('ArrowRight');
+    ok(S10.paceEdit === 40, '→→ = 40 min');
+    key('Enter'); await sleep(100);
+    ok(S10.paceGoal === 40 && S10.paceEdit == null && /目標ペース 40分 設定中/.test(text()), 'Enter fixes 40 min for 5km');
+    key('ArrowRight');                                        // 10km は別の鍵
+    ok(S10.freeGoal === 10000 && S10.paceGoal == null, '10km has its own (unset) pace goal');
+    key('ArrowLeft');
+    ok(S10.freeGoal === 5000 && S10.paceGoal === 40, 'back to 5km restores 40 min');
+    key('Enter'); await sleep(1500);                          // 計測開始
+    ok(S10.mode === 'main' && S10.tracking && S10.ghostSrc === 'pace', 'free run starts with the pace ghost');
+    // 3分経過・1km 走った状態にして、等速ゴースト(40分で5km=125m/分)との差が出る
+    S10.startMs = T().nowMs() - 3 * 60000;
+    let cur = [S10.route.pts[0][0], S10.route.pts[0][1]];
+    for (let i = 0; i < 3; i++) { cur = window.CORE.destPoint(cur[0], cur[1], 45, 330); T().onFix({ la: cur[0], lo: cur[1], acc: 8, t: Date.now() }); }
+    T().render();
+    const ga = T().ghostAlongNow();
+    ok(ga != null && Math.abs(ga - 375) < 5, `ghost sits at 375m after 3 min (${ga && ga.toFixed(0)}m)`);
+    ok(/[+\-−]\d+(\.\d+)?s|[+\-−]\d+分/.test(text()), 'delta bar shows the time gap to the pace ghost');
+    S10.tracking = false; S10.mode = 'select'; S10.freeSel = false; S10.routeIdx = 0; S10.paceGoal = null; T().render();
+  }
+
   console.log(`\n${step - fail}/${step} passed`);
   window.close();
   process.exit(fail ? 1 : 0);

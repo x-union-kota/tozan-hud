@@ -561,7 +561,7 @@
   }
   function wpFlash(msg) { S.wpFlashMsg = msg; S.wpFlashUntil = nowMs() + 8000; }
 
-  function isLoopRoute() { return CORE.isLoop(S.route); }
+  function isLoopRoute() { return !isFree() && CORE.isLoop(S.route); }   // その場モードは1点ルート(始点=終点)だが周回ではない
   function checkLapAndSegs(t) {
     if (!S.tracking || !S.proj) return;
     // 進行方向ゲート: 直近45秒のalong履歴で「前進して通過した」ときだけラップを発火させる。
@@ -623,6 +623,7 @@
   var ghostDistHist = [];
   function ghostOverlayHtml() {
     if (S.mode !== 'main' || !S.tracking || !S.proj) return '';
+    if (isFree()) return '';                 // その場モードのゴーストは「距離」だけで地上の位置を持たない(背中は描けない。デルタバーだけ)
     var st = staleInfo();
     if (st.sec > 90 || offRouteNow() || !S.headingSettled) return '';   // 正直さゲート
     var gA = ghostAlongNow();
@@ -855,12 +856,15 @@
       if (k === 'Enter') { toReady(); }
       return;
     }
-    if (S.mode === 'ready' && S.freeSel && !S.diag) {
+    if (S.mode === 'ready' && S.freeSel && !S.diag && S.paceEdit == null) {
       if (k === 'ArrowLeft' || k === 'ArrowRight') {
         var gs = [0, 5000, 10000], gi = Math.max(0, gs.indexOf(S.freeGoal));
-        S.freeGoal = gs[(gi + (k === 'ArrowRight' ? 1 : 2)) % 3]; render(); return;
+        S.freeGoal = gs[(gi + (k === 'ArrowRight' ? 1 : 2)) % 3];
+        loadPaceGoal();                                     // 目標ペースは距離ごとに永続(5km と 10km は別物)
+        render(); return;
       }
-      if (k === 'ArrowUp') return;                          // 目標ペースはルート無しでは組めない(段階2)
+      // 段階2: 目標ペースは目標距離があるときだけ組める(等速の仮想走者は「距離÷時間」なので)
+      if (k === 'ArrowUp' && !S.freeGoal) { wpFlash('←→ で目標距離を選ぶと目標ペースを組めます'); return; }
     }
     if (S.mode === 'ready') {
       if (S.paceEdit != null) {                             // N8: 目標ペース層(↑で開く)
@@ -1081,7 +1085,7 @@
     if (S.freeSel) {                                   // その場モード: 現在地が要るので先に測る
       S.route = null; S.sun = null; S.freeDone = false;
       S.startCands = null; S.startIdx = 0; S.startManual = false; S.startSuggested = false; S.readyGeo = null;
-      S.paceGoal = null; S.paceEdit = null;
+      loadPaceGoal();                                  // 段階2: 目標距離ごとに永続した目標ペース
       readyGeoPoll();
       pushScreen('ready'); S.mode = 'ready'; startTicker(); render();
       return;
@@ -1685,13 +1689,17 @@
     var set = g ? CORE.fmtClock(CORE.sunTimes(g.la, g.lo, nowDate()).sunset) : '--:--';
     var goal = S.freeGoal ? (S.freeGoal / 1000) + 'km' : 'なし';
     return '<div class="abs ctr" style="top:40px"><span class="route-name">ここから</span></div>' +
+      (S.paceEdit != null ? '' :                            // 目標ペース層と同じ帯を使うので排他(ルート側と同じ)
       '<div class="abs" style="top:150px;padding:0 90px"><div class="frame">' +
       '<div class="stat-row">現在地 <span class="' + (g ? 'main-c' : 'dim') + '">' + pos + '</span></div>' +
       '<div class="stat-row">日没　 ' + set + '</div>' +
       '<div class="stat-row">目標　 <span class="dim">◂ </span><span class="main-c">' + goal + '</span><span class="dim"> ▸</span></div>' +
-      '</div></div>' +
+      '</div></div>') +
       '<div class="abs ctr" style="top:352px"><span class="sub dim">←→ 目標距離(なし / 5km / 10km)</span><br>' +
-      '<span class="sub dim">星・透視・等高線はどこでも動きます</span></div>' +
+      (S.freeGoal && S.paceEdit == null
+        ? '<span class="sub ' + (S.paceGoal > 0 ? 'acc2' : 'dim') + '">↑ 目標ペース' +
+          (S.paceGoal > 0 ? ' ' + CORE.fmtDur(S.paceGoal) + ' 設定中(等速ゴースト)' : '(未設定)') + '</span>'
+        : '<span class="sub dim">星・透視・等高線はどこでも動きます</span>') + '</div>' + paceHtml() +
       (S.perm ? '<div class="abs ctr" style="top:420px;padding:0 40px"><span class="sub acc2">' + esc(S.perm) + '</span></div>' : '') +
       '<div class="abs ctr" style="bottom:28px"><span class="hint ' + (S.starting ? 'dim' : 'main-c') + '">' +
       (S.starting ? '確認中…' : 'ピンチで計測開始') + '</span><span class="hint dim">　戻る: 選択へ</span></div>' +
@@ -1783,7 +1791,8 @@
     var head = panelHeader(['進捗', '断面', '地形図', '次WP', '天気']);
     var band = bandText();
     // C-2: ゴーストの「後方○m」はデルタバー(時間差)に置き換える。距離より時間のほうが行動に効く
-    var dbar = (band.ghost || !band.s) ? ghostDeltaHtml() : '';
+    // その場モードは背中オーバーレイが無い(=band.ghost が立たない)ので、精度表示だけの帯ならデルタバーを優先する
+    var dbar = (band.ghost || !band.s || (isFree() && band.c === 'dim')) ? ghostDeltaHtml() : '';
     var bandHtml = dbar
       ? '<div class="abs z-band" style="line-height:0;padding-top:3px">' + dbar + '</div>'
       : '<div class="abs z-band ' + band.c + '">' + esc(band.s) + '</div>';
@@ -1926,14 +1935,21 @@
 
   /* ---- N8: 目標ペース(等速仮想走者)の設定 ---- */
   var PACE_STEP = 5;                                       // 分。長押しが使えないので粗めに刻む
-  function paceKey() { return 'thud.paceGoal.' + (S.route ? S.route.id : '-'); }
-  function paceBase() {                                    // 基準=標準CT(無ければ4km/h換算)
+  function paceKey() { return 'thud.paceGoal.' + (S.freeSel ? 'free' + S.freeGoal : (S.route ? S.route.id : '-')); }
+  function paceDist() { return S.freeSel ? S.freeGoal : (S.route ? S.route.total : 0); }   // 目標タイムが対応する距離
+  var FREE_PACE_MIN_PER_KM = 6;                             // その場モードの基準: 6:00/km(ジョグ)。標準CTが無いので
+  function paceBase() {                                    // 基準=標準CT(無ければ4km/h換算)。その場モードは 6:00/km
+    if (S.freeSel) return Math.max(PACE_STEP, Math.round((S.freeGoal / 1000) * FREE_PACE_MIN_PER_KM / PACE_STEP) * PACE_STEP);
     var r = S.route;
     if (!r) return 60;
     var b = (r.ctTotal && r.ctTotal > 10) ? r.ctTotal : (r.total / 4000) * 60;
     return Math.max(PACE_STEP, Math.round(b / PACE_STEP) * PACE_STEP);
   }
   function paceRange() { var b = paceBase();               // 下限より下は「設定しない」(=0)
+    if (S.freeSel) {                                       // 3:00/km(競技)〜15:00/km(散歩)。ランも歩きも同じ画面で
+      var km = S.freeGoal / 1000;
+      return [Math.max(PACE_STEP, Math.round(km * 3 / PACE_STEP) * PACE_STEP), Math.round(km * 15 / PACE_STEP) * PACE_STEP];
+    }
     return [Math.max(PACE_STEP, Math.round(b * 0.4 / PACE_STEP) * PACE_STEP),
             Math.round(b * 1.6 / PACE_STEP) * PACE_STEP]; }
   function loadPaceGoal() {
@@ -1944,11 +1960,12 @@
   function paceHtml() {
     if (S.paceEdit == null) return '';
     var base = paceBase(), off = (S.paceEdit === 0);
-    var kmh = off ? 0 : (S.route.total / 1000) / (S.paceEdit / 60);
-    var vs = (S.paceEdit === base) ? '標準CTと同じ'
-           : '標準CT ' + CORE.fmtDur(base) + ' 比 ' + CORE.fmtDiff(S.paceEdit - base);
+    var kmh = off ? 0 : (paceDist() / 1000) / (S.paceEdit / 60);
+    var ref = S.freeSel ? FREE_PACE_MIN_PER_KM + ':00/km' : '標準CT';
+    var vs = (S.paceEdit === base) ? ref + 'と同じ'
+           : ref + ' ' + CORE.fmtDur(base) + ' 比 ' + CORE.fmtDiff(S.paceEdit - base);
     return '<div class="abs" style="top:170px;padding:0 70px"><div class="frame ctr">' +
-      '<div class="sub dim">' + (isLoopRoute() ? '1周の目標タイム' : '目標タイム') + '(等速の仮想走者)</div>' +
+      '<div class="sub dim">' + (S.freeSel ? (S.freeGoal / 1000) + 'km の目標タイム' : isLoopRoute() ? '1周の目標タイム' : '目標タイム') + '(等速の仮想走者)</div>' +
       '<div class="stat-row"><span class="dim">◂ </span><span class="' + (off ? 'dim' : 'main-c') + '">' +
       (off ? '設定しない' : CORE.fmtDur(S.paceEdit)) + '</span><span class="dim"> ▸</span></div>' +
       '<div class="sub dim">' + (off

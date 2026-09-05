@@ -11,7 +11,7 @@ Meta Ray-Ban Display(HUD + Neural Band)向けの登山/ランHUD。CDN・外部�
 npm install jsdom                 # jsdom統合テスト用
 python3 tools/build.py            # src/* → dist/index.html
 node test/core.test.js            # 純ロジック 161件
-node test/app.smoke.js            # jsdom統合 151件
+node test/app.smoke.js            # jsdom統合 162件
 python3 test/gpx2route.test.py    # 変換ツール 134件
 ```
 
