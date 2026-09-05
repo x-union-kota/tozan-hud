@@ -323,6 +323,41 @@ const sleep = (ms) => new Promise(r => setTimeout(r, ms));
     S6.ghostBehind = null; T().render();
   }
 
+  // ---- 実機バグ回帰: 透視/星はキー操作なしで、方位イベントだけで描き直される ----
+  {
+    const S8 = T().S;
+    const keep = { mode: S8.mode, layer: S8.identLayer, tracking: S8.tracking, track: S8.track.slice(), lastTrackMs: S8.lastTrackMs };
+    S8.tracking = true; S8.mode = 'ident'; S8.identLayer = 'ground';
+    S8.lastFix = S8.lastFix || { la: S8.route.pts[0][0], lo: S8.route.pts[0][1], acc: 8, t: Date.now() };
+    S8.heading = 30; S8.headingReal = Date.now(); S8.headingSettled = true; T().render();
+    const before = text();
+    // キーは押さない。方位だけ変えて、方位イベントの経路(refreshHeadingView)を叩く
+    S8.heading = 120; S8.headingReal = Date.now();
+    T().refreshHeadingView();
+    ok(text() !== before, 'ident redraws from a heading change alone (no key press)');
+    // 星も同じ
+    S8.identLayer = 'sky'; S8.pitch = 20; S8.pitchReal = Date.now(); T().refreshHeadingView();
+    const sky1 = text();
+    S8.heading = 300; S8.headingReal = Date.now(); T().refreshHeadingView();
+    ok(text() !== sky1, 'the sky layer redraws from a heading change alone');
+    // main ではテープだけが差し替わる(全体を描き直さない)
+    S8.mode = 'main'; S8.panel = 0; T().render();
+    const tapeBefore = (window.document.getElementById('tape') || {}).innerHTML;
+    S8.heading = 200; S8.headingReal = Date.now(); T().refreshHeadingView();
+    const tapeAfter = (window.document.getElementById('tape') || {}).innerHTML;
+    ok(tapeBefore && tapeAfter && tapeBefore !== tapeAfter, 'main refreshes the tape on a heading change');
+
+    // tick は計測中なら ident でも進む(記録・判定が止まらない)
+    S8.mode = 'ident'; S8.identLayer = 'ground';
+    S8.lastTrackMs = 0; const n0 = S8.track.length;
+    // tick は setInterval で1Hz。直接叩けないので、記録条件を満たした状態で1.2秒待つ
+    await sleep(1200);
+    ok(S8.track.length > n0, 'the track keeps recording while the see-through layer is open');
+
+    S8.mode = keep.mode; S8.identLayer = keep.layer; S8.tracking = keep.tracking;
+    S8.track = keep.track; S8.lastTrackMs = keep.lastTrackMs; T().render();
+  }
+
   // ---- SPEC B: 透視・星座は頭の向きに追従する(キー操作で方位を回さない) ----
   {
     const S5 = T().S;

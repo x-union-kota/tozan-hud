@@ -102,6 +102,7 @@
       S.heading = (CORE.bearing([p.la, p.lo], [ah2.la, ah2.lo]) + (sim.headOff || 0) + gauss() * 8 + 360) % 360;
       S.headingReal = Date.now(); S.headingSettled = true;
       S.pitch = sim.pitchOff || 0; S.pitchReal = Date.now();   // simの仰角(y/uキーで動かす)
+      scheduleArrow();
       cb({ la: pos[0], lo: pos[1], acc: acc, t: nowMs() });
     }
 
@@ -655,7 +656,10 @@
 
   function tick() {
     if (S.mode === 'ready' && S.diag) { diagPollGeo(); render(); return; }   // 診断表示のライブ更新+GPS単発測位
-    if (S.mode !== 'main' && S.mode !== 'warn') return;  // 非アクティブ時は進行停止(ガイド準拠)
+    // 計測中はモードに関係なく進める。以前は main/warn 以外で止めていたため、
+    // 透視や星を開いている間はトラック記録・ラップ判定・キープアライブ測位・再描画が
+    // 全部止まっていた(実機で「顔を動かしても変わらない」と出た原因の半分)
+    if (!S.tracking) return;
     if (S.tracking) keepAlivePoll();
     var t = nowMs();
     var dtMin = Math.min((t - lastTickMs) / 60000, 5);   // 復帰直後の巨大dtを抑制
@@ -1000,9 +1004,27 @@
       '</svg>';
   }
   var arrowPending = false;
+  var viewLastMs = 0;
   function scheduleArrow() {
     if (arrowPending) return; arrowPending = true;
-    requestAnimationFrame(function () { arrowPending = false; updateArrow(); });
+    requestAnimationFrame(function () {
+      arrowPending = false;
+      updateArrow();                                   // 矢印は毎フレーム(軽い)
+      // 方位で決まる表示(テープ・透視・星)はイベントごとに描き直す。
+      // 1Hzのtick任せだとカクカクになる(実機で確認)。全体の innerHTML 差し替えは
+      // 重いので 50ms(≈20fps)に間引き、main ではテープだけを差し替える
+      var now = Date.now();
+      if (now - viewLastMs < 50) { arrowPending = true; requestAnimationFrame(function () { arrowPending = false; refreshHeadingView(); }); return; }
+      refreshHeadingView();
+    });
+  }
+  function refreshHeadingView() {
+    viewLastMs = Date.now();
+    if (S.mode === 'ident') { render(); return; }
+    if (S.mode === 'main') {
+      var tp = document.getElementById('tape');
+      if (tp) tp.outerHTML = headingTape();
+    }
   }
   function arrowTarget() {
     if (!S.proj) return null;
@@ -1100,7 +1122,7 @@
     var H = 50, HALF = 45, W = 600;
     var ht = headingTrue();
     if (ht == null || !S.headingSettled) {
-      return '<div class="abs" style="top:0;height:' + H + 'px"><div class="ctr" style="padding-top:14px">' +
+      return '<div id="tape" class="abs" style="top:0;height:' + H + 'px"><div class="ctr" style="padding-top:14px">' +
         '<span class="sub dim">方位' + (S.heading == null ? '取得待ち' : '較正中') + '…</span></div></div>';
     }
     var svg = '<svg viewBox="0 0 600 ' + H + '" width="600" height="' + H + '">';
@@ -1122,7 +1144,7 @@
       svg += '<text x="' + mx + '" y="15" fill="' + mk[i].c + '" font-size="15" text-anchor="middle" font-family="inherit">' + esc(mk[i].n) + '</text>';
     }
     svg += '</svg>';
-    return '<div class="abs" style="top:0;height:' + H + 'px;line-height:0">' + svg + '</div>';
+    return '<div id="tape" class="abs" style="top:0;height:' + H + 'px;line-height:0">' + svg + '</div>';
   }
 
   /* ---- C-1: 引き返し限界 ---- */
@@ -2165,5 +2187,5 @@
       expectCt: (S.ghostSrc === 'ct' && r) ? Math.round(CORE.ctInverse(r, el)) : null
     };
   }
-  if (typeof window !== 'undefined') window.__THUD = { S: S, Geo: Geo, render: render, nowMs: nowMs, checkLapAndSegs: checkLapAndSegs, ghostAlongNow: ghostAlongNow, dumpSky: dumpSky, dumpGhost: dumpGhost, updateArrow: updateArrow };
+  if (typeof window !== 'undefined') window.__THUD = { S: S, Geo: Geo, render: render, nowMs: nowMs, checkLapAndSegs: checkLapAndSegs, ghostAlongNow: ghostAlongNow, dumpSky: dumpSky, dumpGhost: dumpGhost, updateArrow: updateArrow, refreshHeadingView: refreshHeadingView };
 })();
