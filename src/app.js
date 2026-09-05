@@ -2083,7 +2083,7 @@
     im.src = demUrl(src, z, x, y);
   }
   var GRID = 2;   // 標高グリッドの画面上の刻み(px)。等高線の滑らかさと計算量のバランス
-  var RIDGE_ON = false;   // 尾根線/谷線は抽出が安定するまで描かない(A-2 次段)
+  var RIDGE_ON = true;    // A-2 次段: 流域集積(CORE.ridgeValleyFlow)で尾根線/谷線を描く。旧 ridgeValley は不安定で不採用
   function buildTerrain(key, geo, W, H) {   // geo: {unpx(x,y)→[lo,la], minLa..} 相当のマッパ
     if (terrCache[key]) return;
     terrCache[key] = { url: null, fail: false, step: null };
@@ -2162,11 +2162,12 @@
         }
         cx.stroke(); drew++;
       }
-      // 尾根線(最明)と谷線(青系)。高尾山の実タイルで画素を数えたところ尾根線は52px しか
-      // 立たず(谷線441px)、稜線の背は1セル差が小さすぎて閾値で拾えない = 抽出が不安定。
-      // SPEC A-2 の逃げ道どおり、まず計曲線+主曲線だけで出す。関数とテストは残してある
+      // 尾根線(最明)と谷線(青系)。1セルの背を閾値で拾う旧法は高尾山の実タイルで尾根が52pxしか
+      // 立たなかった。流域集積(D8で集めた面積が閾値以上のセルを下流へ結ぶ。裏返せば尾根)なら
+      // 線が自然に連結し、閾値=細かさ。高尾山 z14 実タイルで目視: 1号路が乗る主稜線が読める。
+      // 閾値はセル数の 1%(460×330/2px で約380セル)。0.4% だとルート全体の縮尺で枝が等高線と混ざって読めない(実機前提で目視)
       if (RIDGE_ON) {
-        var rv = CORE.ridgeValley(grid, gw, gh, 0.8 * (g60 || 0.5) * GRID);
+        var rv = CORE.ridgeValleyFlow(grid, gw, gh, Math.max(40, Math.round(gw * gh * 0.01)));
         cx.lineWidth = 1.5;
         cx.strokeStyle = '#2e4650'; cx.beginPath();
         for (i = 0; i < rv.v.length; i += 4) { cx.moveTo(rv.v[i] * GRID, rv.v[i + 1] * GRID); cx.lineTo(rv.v[i + 2] * GRID, rv.v[i + 3] * GRID); }

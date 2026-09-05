@@ -246,6 +246,49 @@ var CORE = (function () {
     return { r: r, v: v };
   }
 
+  /* 尾根線/谷線を「流域集積」で抜く(A-2 次段)。
+     ridgeValley は1セルの背を閾値で拾うだけなので、DEMの量子化やグリッド刻みで背が1セルに
+     収まらない稜線が全部落ちた(高尾山の実タイルで尾根52px)。ここでは D8 流下方向で
+     集積面積を数え、一定以上のセルを下流へ結ぶ = 谷線。DEMを裏返して同じことをすると尾根線。
+     線は流下方向に沿って自然に連結し、閾値がそのまま「細かさ」になる。
+     minAcc: 線として出す最小集積セル数 */
+  function ridgeValleyFlow(grid, w, h, minAcc) {
+    var n = w * h, i;
+    function flow(sign) {                                   // sign=+1: 谷(下る) / -1: 尾根(登る=裏返し)
+      var down = new Int32Array(n), acc = new Float64Array(n), order = [];
+      for (i = 0; i < n; i++) { down[i] = -1; if (grid[i] != null) { order.push(i); acc[i] = 1; } }
+      for (i = 0; i < order.length; i++) {
+        var c = order[i], x = c % w, y = (c - x) / w, hc = grid[c] * sign, best = 0, bj = -1;
+        for (var dy = -1; dy <= 1; dy++) {
+          for (var dx = -1; dx <= 1; dx++) {
+            if (!dx && !dy) continue;
+            var xx = x + dx, yy = y + dy;
+            if (xx < 0 || yy < 0 || xx >= w || yy >= h) continue;
+            var j = yy * w + xx;
+            if (grid[j] == null) continue;
+            var s = (hc - grid[j] * sign) / ((dx && dy) ? 1.41421356 : 1);   // 落差/距離 = 勾配
+            if (s > best) { best = s; bj = j; }
+          }
+        }
+        down[c] = bj;
+      }
+      // 高い方から順に集積を下流へ流す(sign で「高い」の向きが変わる)
+      order.sort(function (a, b) { return (grid[b] - grid[a]) * sign; });
+      for (i = 0; i < order.length; i++) {
+        var u = order[i], d = down[u];
+        if (d >= 0) acc[d] += acc[u];
+      }
+      var segs = [];
+      for (i = 0; i < n; i++) {
+        var d2 = down[i];
+        if (d2 < 0 || acc[i] < minAcc || acc[d2] < minAcc) continue;
+        segs.push(i % w, (i - i % w) / w, d2 % w, (d2 - d2 % w) / w);
+      }
+      return segs;
+    }
+    return { v: flow(1), r: flow(-1) };
+  }
+
   /* ---------- 星表(stars.js の圧縮形式)を展開する ----------
      s: ラベル用 [名前, RA時, Dec度, 等級] / v: 線の頂点専用 [RA時, Dec度, 等級]
      c: {略号: {n: 和名, l: [[i,j], ...]}} — 添字は s.concat(v) の連結空間。
@@ -650,7 +693,7 @@ var CORE = (function () {
     ghostTimeAt: ghostTimeAt, ghostDelta: ghostDelta, signedCrossTrack: signedCrossTrack,
     buildStars: buildStars,
     demElev: demElev, contourStep: contourStep, gradPercentile: gradPercentile,
-    marchingSquares: marchingSquares, ridgeValley: ridgeValley,
+    marchingSquares: marchingSquares, ridgeValley: ridgeValley, ridgeValleyFlow: ridgeValleyFlow,
     hav: hav, bearing: bearing, destPoint: destPoint,
     buildRoute: buildRoute,
     projectRange: projectRange, matchLocal: matchLocal,

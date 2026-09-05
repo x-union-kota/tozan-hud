@@ -509,6 +509,27 @@ console.log('[cross track]');
 /* 16. 尾根線・谷線の抽出(SPEC A-2。描画は次段だが関数は検証しておく) */
 console.log('[ridge]');
 {
+  // 流域集積版: 屋根型(中央が高い) → 尾根が中央の縦線、谷は両端。谷型ならその逆
+  const w = 21, h = 15, roof = [], trough = [];
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) { roof.push(100 - Math.abs(x - 10) * 5 - y * 0.1); trough.push(Math.abs(x - 10) * 5 + y * 0.1); }
+  // 平面の斜面では各行が独立した「流路」になる(1行の片側=最大10セル)ので、閾値12で稜線だけが残る
+  const rv = CORE.ridgeValleyFlow(roof, w, h, 12);
+  const onMid = (segs) => { let n = 0; for (let i = 0; i < segs.length; i += 4) if (segs[i] === 10 && segs[i + 2] === 10) n++; return n; };
+  ok(rv.r.length / 4 >= h - 3 && onMid(rv.r) === rv.r.length / 4, `roof: every ridge segment runs down the crest (${onMid(rv.r)}/${rv.r.length / 4})`);
+  ok(onMid(rv.v) === 0, 'roof: no valley on the crest');
+  const tv = CORE.ridgeValleyFlow(trough, w, h, 12);
+  ok(tv.v.length / 4 >= h - 3 && onMid(tv.v) === tv.v.length / 4, `trough: every valley segment runs down the floor (${onMid(tv.v)}/${tv.v.length / 4})`);
+  ok(onMid(tv.r) === 0, 'trough: no ridge on the floor');
+  // 閾値を下げると斜面の流路も出る(枝が増える)。無効セルは跨がない
+  const lo = CORE.ridgeValleyFlow(roof, w, h, 5);
+  ok(lo.r.length > rv.r.length, 'lower minAcc → more ridge segments (side channels appear)');
+  const holey = roof.slice(); for (let x = 0; x < w; x++) holey[7 * w + x] = null;
+  const hv = CORE.ridgeValleyFlow(holey, w, h, 5);
+  let crosses = 0; for (let i = 0; i < hv.r.length; i += 4) if (hv.r[i + 1] === 7 || hv.r[i + 3] === 7) crosses++;
+  ok(crosses === 0, 'invalid DEM cells are never part of a line');
+}
+
+{
   // 東西に走る稜線: y=3 が背(標高10)、両側へ下がる
   const w = 7, h = 7, g = [];
   for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) g[y * w + x] = 10 - Math.abs(y - 3) * 2;
