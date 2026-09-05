@@ -11,7 +11,7 @@ Meta Ray-Ban Display(HUD+Neural Band)向けの登山/ランHUD。単一HTMLのWe
 python3 tools/build.py            # src/* → dist/index.html (単一HTML組み立て)
 node test/core.test.js            # 純ロジック 156件
 node test/app.smoke.js            # jsdom統合 149件 (要: npm install jsdom / dist を先にビルド)
-python3 test/gpx2route.test.py    # 変換ツール 111件
+python3 test/gpx2route.test.py    # 変換ツール 122件
 
 cp dist/index.html index.html && cp dist/sw.js sw.js   # 公開用コピー(GitHub Pages はリポジトリ直下を配信)
 ```
@@ -19,8 +19,9 @@ cp dist/index.html index.html && cp dist/sw.js sw.js   # 公開用コピー(GitH
 **編集後は必ず build → 3スイート全通過を確認してから完了とする。**
 デモルートのデータを触ったら `tools/make_field_demo.py` → `make_registry.py --wmm <WMM2025COF.zip>` の順で再生成してから build
 (星表はルートに依存しないので `make_stars.py` は星データを変えたときだけ)。
-**都市デモ(晴海・皇居)は手描きの概形ではなく、`test/fixtures/*-osm.json` の道路網上で角を結んだ経路**(`route_on_graph`)。
-角の座標は交差点に置くこと。岸壁や公園内に置くと「道の無い場所」を通る概形に戻る。
+**都市デモ(晴海・皇居)は手描きの概形ではなく、`test/fixtures/*-osm.json` の道路網上の経路**。
+晴海=交差点の角を `route_on_graph` で結ぶ / 皇居=皇居を囲む最短の閉路 `enclosing_loop`(=内側の歩道リング 5.06km、公式約5.0km)。
+角は交差点に置くこと。門や公園内に置くと外苑側へ引っ張られる(皇居で 5.7km になった)。
 
 ## 絶対に守る制約(実機で確定済み・違反すると動かない)
 

@@ -501,13 +501,15 @@ ROAD_CLASS = {
     'motorway_link': 4, 'trunk_link': 4, 'primary_link': 4,
     'secondary': 3, 'tertiary': 3, 'secondary_link': 3, 'tertiary_link': 3,
     'residential': 2, 'unclassified': 2, 'living_street': 2, 'pedestrian': 2,
-    'service': 1, 'footway': 1, 'sidewalk': 1, 'path': 1, 'steps': 1, 'cycleway': 1, 'track': 1,
+    'service': 1, 'footway': 1, 'sidewalk': 1, 'crossing': 1, 'path': 1, 'steps': 1, 'cycleway': 1, 'track': 1,
 }
+WAY_TAG_KEYS = ('sidewalk', 'surface', 'access', 'foot', 'service', 'crossing', 'lit', 'name')
 SNAP_EXCLUDE = ('motorway', 'motorway_link')       # 首都高等の車専用道へ吸着させない
 SNAP_TRAIL = ('path', 'footway', 'track', 'steps', 'pedestrian')   # mountainの主候補
 
 def load_osm_ways(paths):
-    """Overpass の `out geom` 応答から折れ線を取り出す → [(kind, cls, [(la,lo),...])]"""
+    """Overpass の `out geom` 応答から折れ線を取り出す → [(kind, cls, [(la,lo),...], sub, tags)]。
+       tags は経路コストに要るキーだけ(WAY_TAG_KEYS)。古い呼び出し側は先頭4要素だけ使えばよい"""
     out = []
     for p in paths:
         try: doc = json.load(open(p, encoding='utf-8'))
@@ -520,11 +522,13 @@ def load_osm_ways(paths):
             if len(line) < 2: continue
             hw, rw = tags.get('highway'), tags.get('railway')
             if hw == 'footway' and tags.get('footway') == 'sidewalk': hw = 'sidewalk'   # 車道沿いの歩道
-            if hw in ROAD_CLASS: out.append(('road', ROAD_CLASS[hw], line, hw))
+            if hw == 'footway' and tags.get('footway') == 'crossing': hw = 'crossing'   # 横断歩道(信号待ちの罰則用)
+            keep = {k: tags[k] for k in WAY_TAG_KEYS if k in tags}
+            if hw in ROAD_CLASS: out.append(('road', ROAD_CLASS[hw], line, hw, keep))
             elif rw in ('rail', 'subway', 'light_rail', 'monorail', 'tram'):
-                out.append(('rail', 1 if rw == 'subway' else 2, line, rw))
+                out.append(('rail', 1 if rw == 'subway' else 2, line, rw, keep))
             elif tags.get('natural') == 'water' or tags.get('waterway') in ('riverbank', 'river', 'canal', 'moat'):
-                out.append(('water', 1, line, tags.get('waterway') or 'water'))
+                out.append(('water', 1, line, tags.get('waterway') or 'water', keep))
     return out
 
 def _pseg_pt(p, a, b):
@@ -611,7 +615,8 @@ def snap_to_osm(pts, ways, domain, max_snap=60.0, step=10.0, beam=8, w_move=1.0,
        → (吸着後の点列, 統計dict)"""
     lat0 = pts[0][0]
     wxy, wcum, cand = {}, {}, []
-    for wi, (kind, cls, line, sub) in enumerate(ways):
+    for wi, w_ in enumerate(ways):
+        kind, cls, line, sub = w_[:4]
         if kind != 'road' or sub in SNAP_EXCLUDE: continue
         if domain == 'mountain' and sub not in SNAP_TRAIL and cls <= 1: continue
         xy = [_xy((q[0], q[1], 0), lat0) for q in line]
@@ -703,13 +708,35 @@ ROUTE_W = {   # 経路コスト = 長さ × 係数。「大通りを一周」を
     'footway': 1.6, 'path': 1.8, 'track': 1.6, 'service': 1.8, 'steps': 3.0,
 }
 
-STREET_W = {   # 「大通りを一周」プリセット: 公園の遊歩道・私道は3倍のコスト(事実上使わない)
-    'sidewalk': 0.9, 'pedestrian': 1.0, 'cycleway': 1.0, 'living_street': 1.0,
-    'residential': 1.0, 'unclassified': 1.05, 'tertiary': 1.05, 'tertiary_link': 1.05,
-    'secondary': 1.1, 'secondary_link': 1.1, 'primary': 1.15, 'primary_link': 1.15,
-    'trunk': 1.3, 'trunk_link': 1.3,
-    'footway': 3.0, 'path': 3.0, 'track': 3.0, 'service': 3.0, 'steps': 4.0,
+STREET_W = {   # 「大通りを一周」= ラン用プリセット。Valhalla pedestrian を土台にラン向けへ調整した表。
+    # 距離×係数。幹線沿いの歩道と歩行者道を1.0にし、歩道の無い車道・私道・階段は避ける。
+    # 表に無い条件(歩道タグ付き車道 1.1 / 私道の駐車場通路 3.0 / 未舗装 1.4 / 通行禁止は除外)は run_weight() が見る
+    'sidewalk': 1.0, 'pedestrian': 1.0, 'cycleway': 1.0, 'crossing': 1.0, 'living_street': 1.1,
+    'residential': 1.3, 'unclassified': 1.3, 'tertiary': 1.5, 'tertiary_link': 1.5,
+    'secondary': 1.8, 'secondary_link': 1.8, 'primary': 1.8, 'primary_link': 1.8,
+    'trunk': 1.8, 'trunk_link': 1.8,
+    'footway': 1.3, 'path': 1.3, 'track': 1.4, 'service': 1.6, 'steps': 5.0,
 }
+UNPAVED = ('gravel', 'fine_gravel', 'dirt', 'ground', 'unpaved', 'sand', 'grass', 'compacted', 'earth', 'mud', 'woodchips', 'pebblestone')
+CARRIAGEWAY = ('primary', 'primary_link', 'secondary', 'secondary_link', 'tertiary', 'tertiary_link', 'trunk', 'trunk_link')
+CROSSING_PENALTY = {'traffic_signals': 40.0, 'default': 15.0}   # 横断1回を距離換算で加算(信号待ちはランの最大の敵)
+
+def run_weight(sub, tags, table):
+    """ラン用の辺コスト係数。None = 使わない(通行禁止・歩道の無い幹線・高速)"""
+    if sub in SNAP_EXCLUDE: return None
+    foot, acc = tags.get('foot'), tags.get('access')
+    if foot in ('no', 'private'): return None
+    if acc in ('private', 'no') and foot not in ('yes', 'designated', 'permissive'): return None
+    if sub in CARRIAGEWAY:
+        if tags.get('sidewalk') in ('yes', 'both', 'left', 'right'): return 1.1    # 歩道が別線で描かれていない受け皿
+        if sub in ('trunk', 'trunk_link'): return None                            # 歩道タグ無しの trunk は走れる保証が無い
+        return table.get(sub, 1.8)
+    if sub == 'service':
+        return 3.0 if tags.get('service') in ('parking_aisle', 'driveway') else table.get('service', 1.6)
+    w = table.get(sub, 1.2)
+    if sub in ('footway', 'path', 'track') and tags.get('surface') in UNPAVED: w = max(w, 1.4)
+    return w
+
 VIA_STREETS = ('sidewalk', 'pedestrian', 'cycleway', 'living_street', 'residential', 'unclassified',
                'tertiary', 'tertiary_link', 'secondary', 'secondary_link', 'primary', 'primary_link')
 
@@ -719,8 +746,8 @@ def build_road_graph(ways, domain='urban', guide=None, corridor=40.0, weights=No
        上げる(80m離れ=×2、200m離れ=×5)。これが無いと最短経路が概形の意図を無視して
        公園の遊歩道や城内の小道へ回り込む(皇居で実測: 5.0km の概形が 8.6km になった)"""
     lat0 = None
-    for (k, cls, line, sub) in ways:
-        if k == 'road' and line: lat0 = line[0][0]; break
+    for w_ in ways:
+        if w_[0] == 'road' and w_[2]: lat0 = w_[2][0][0]; break
     if lat0 is None: return None
     gidx = None
     if guide and len(guide) >= 2:
@@ -737,17 +764,28 @@ def build_road_graph(ways, domain='urban', guide=None, corridor=40.0, weights=No
         if k not in key2i:
             key2i[k] = len(nodes); nodes.append((la, lo)); adj[key2i[k]] = []
         return key2i[k]
-    for (k, cls, line, sub) in ways:
+    for w_ in ways:
+        k, cls, line, sub = w_[:4]; tags = w_[4] if len(w_) > 4 else {}
         if k != 'road' or sub in SNAP_EXCLUDE: continue
         if domain == 'mountain' and sub not in SNAP_TRAIL and cls <= 1: continue
-        w = (weights or ROUTE_W).get(sub, 1.2)
+        if weights is not None:
+            w = run_weight(sub, tags, weights)
+            if w is None: continue
+        else:
+            w = ROUTE_W.get(sub, 1.2)
+        # 横断歩道は way ごとに1回だけ距離換算の罰則(横断歩道の way の最初の辺に乗せる)。
+        # 皇居で実測: 罰則無しだと歩道を28回乗り換えて 5.69km、実コースは歩道リング一周 5.0km
+        extra = 0.0
+        if weights is not None and sub == 'crossing':
+            extra = CROSSING_PENALTY['traffic_signals' if tags.get('crossing') == 'traffic_signals' else 'default']
         prev = None
         for (la, lo) in line:
             i = nid(la, lo)
             if prev is not None and prev != i:
                 d = hav((nodes[prev][0], nodes[prev][1]), (la, lo))
                 ff = far_factor((nodes[prev][0] + la) / 2, (nodes[prev][1] + lo) / 2)
-                adj[prev].append((i, d * w * ff, d)); adj[i].append((prev, d * w * ff, d))
+                c = d * w * ff + extra; extra = 0.0
+                adj[prev].append((i, c, d)); adj[i].append((prev, c, d))
                 EDGE_LIST.append((prev, i)); EDGE_COST.append(w * ff); EDGE_SUB.append(sub)
             prev = i
     edge_idx = SegIndex([(_xy((nodes[u][0], nodes[u][1], 0), lat0), _xy((nodes[v][0], nodes[v][1], 0), lat0), k, 0.0)
@@ -921,6 +959,49 @@ def route_on_graph(pts, ways, domain='urban', via_step=250.0, snap_r=300.0, K=4,
         out[i] = (out[i][0], out[i][1], be)
     return out, {'via': len(vias), 'ok': ok, 'skipped': skipped, 'nodes': len(nodes)}
 
+def enclosing_loop(ways, center, domain='urban', r_min=200.0, r_max=1500.0, prefer=('sidewalk', 'pedestrian'), streets=True):
+    """center を囲む最短の閉路を道路グラフから求める(「大通りを一周」を角の指定無しで作る)。
+       中心から真東への半直線を跨ぐ辺を全部外し、跨ぐ辺ごとに両端を結ぶ最短路+その辺=中心を一周する閉路。
+       prefer の種別で最も内側の辺の閉路を返す。皇居で実測: 内側の歩道(半径714m)の閉路 5063m = 公式約5.0km。
+       → (点列(閉じている), {'radius', 'len', 'sub', 'tried'}) / 見つからなければ (None, {...})"""
+    del EDGE_LIST[:]; del EDGE_COST[:]; del EDGE_SUB[:]
+    g = build_road_graph(ways, domain, guide=None, weights=(STREET_W if streets else None))
+    if not g: return None, {'tried': 0}
+    nodes, adj, lat0, _eidx = g
+    C = _xy((center[0], center[1], 0), lat0)
+    xy = [_xy((la, lo, 0), lat0) for la, lo in nodes]
+    def ray_x(u, v):                                   # 辺uvが半直線(y=Cy, x>Cx)を跨ぐなら中心からの距離
+        a, b = xy[u], xy[v]
+        if (a[1] - C[1]) * (b[1] - C[1]) > 0 or a[1] == b[1]: return None
+        t = (C[1] - a[1]) / (b[1] - a[1]); x = a[0] + (b[0] - a[0]) * t
+        return x - C[0] if x > C[0] else None
+    cut = {}
+    for k, (u, v) in enumerate(EDGE_LIST):
+        r = ray_x(u, v)
+        if r is not None and r_min < r < r_max: cut[(u, v)] = (r, k)
+    cutset = set(cut) | set((v, u) for (u, v) in cut)
+    adj2 = {u: [(v, c, l) for (v, c, l) in es if (u, v) not in cutset] for u, es in adj.items()}
+    tried = 0
+    for (u, v), (r, k) in sorted(cut.items(), key=lambda kv: kv[1][0]):
+        if EDGE_SUB[k] not in prefer: continue
+        tried += 1
+        path = dijkstra(adj2, u, v)
+        if not path: continue
+        pts = [(nodes[i][0], nodes[i][1], 0.0) for i in path]
+        pts.append(pts[0])
+        return pts, {'radius': r, 'len': cumdist(pts)[-1], 'sub': EDGE_SUB[k], 'tried': tried}
+    return None, {'tried': tried}
+
+def orient_loop(pts, start, ccw=True):
+    """閉路を start に最も近い点から始まるよう回し、向き(反時計回り=ccw)を揃える"""
+    if hav(pts[0], pts[-1]) < 1: pts = pts[:-1]
+    i0 = min(range(len(pts)), key=lambda i: hav(start, pts[i]))
+    pts = pts[i0:] + pts[:i0]
+    lat0 = pts[0][0]; xy = [_xy(p, lat0) for p in pts]
+    area = sum(xy[i - 1][0] * xy[i][1] - xy[i][0] * xy[i - 1][1] for i in range(len(xy)))
+    if (area > 0) != ccw: pts = [pts[0]] + pts[1:][::-1]
+    return pts + [pts[0]]
+
 def route_deviation(orig, new):
     """origの各点から new 折れ線への距離 → (平均, 最大)。吸着で何m動いたかの実測値"""
     lat0 = orig[0][0]
@@ -933,7 +1014,8 @@ def bake_vec(pts, ways, margin, tol, budget_kb):
     lat0 = pts[0][0]
     xy_pts = [_xy(p, lat0) for p in pts]
     groups = {'road': [], 'water': [], 'rail': []}
-    for (kind, cls, line, sub) in ways:
+    for w_ in ways:
+        kind, cls, line, sub = w_[:4]
         # ルート回廊から遠い線は落とす(端点と中点で足切り→残ったら全点で判定)
         probe = [line[0], line[len(line) // 2], line[-1]]
         if min(min_dist_to_route((q[0], q[1], 0), xy_pts, lat0) for q in probe) > margin * 2:
@@ -1169,7 +1251,9 @@ def main():
     ap.add_argument('--dem-radius-km', type=float, default=None, help='DL範囲: ルートbboxからの余裕km (既定は --peak-km と同じ)')
     # v3.2 OSM道路ベクタ
     ap.add_argument('--route-osm', action='store_true', help='概形を経由点にして道路グラフの最短経路で結び直す(結果は100%%道の上)')
-    ap.add_argument('--via-step', type=float, default=250.0, help='--route-osm の経由点間隔 m (既定250)')
+    ap.add_argument('--via-step', type=float, default=0.0, help='--route-osm の経由点を等間隔サンプルにする間隔 m (既定0=使わず、概形をDP簡略した角だけを経由点にする)')
+    ap.add_argument('--ring-around', default=None, help='LAT,LON を囲む最短の閉路(内側の歩道)をルートにする(--osm 必須。GPXは起点と向きの指定にだけ使う)')
+    ap.add_argument('--via-tol', type=float, default=40.0, help='--route-osm の概形DP簡略の許容誤差 m (既定40。全点を経由点にすると路地でジグザグする)')
     ap.add_argument('--no-snap', action='store_true', help='--osm があってもルートの道路吸着をしない')
     ap.add_argument('--snap-max', type=float, default=60.0, help='吸着を諦める射影距離 m (既定60。堀・ブロック越えの誤吸着防止)')
     ap.add_argument('--no-vec', action='store_true', help='地図パネル用の道路ベクタを焼き込まない')
@@ -1212,11 +1296,25 @@ def main():
     # --- v3.2: ルートの道路吸着。ジオメトリが変わるので距離/CT/WPスナップより先に済ませる ---
     ways = load_osm_ways(a.osm) if a.osm else []
     snap_note = ''
-    if ways and a.route_osm:
+    if ways and a.ring_around:
+        cla, clo = [float(x) for x in a.ring_around.split(',')]
+        ring, st = enclosing_loop(ways, (cla, clo), 'urban')
+        if not ring: sys.exit(f'--ring-around: {a.ring_around} を囲む閉路が道路グラフに無い(試行{st["tried"]})')
+        pre_cum = cumdist(pts)
+        lat0_ = pts[0][0]; xy_ = [_xy(p, lat0_) for p in pts]
+        area_ = sum(xy_[i - 1][0] * xy_[i][1] - xy_[i][0] * xy_[i - 1][1] for i in range(len(xy_)))
+        ring = orient_loop(ring, pts[0], ccw=(area_ >= 0))
+        ele0 = pts[0][2]
+        pts = simplify([(p[0], p[1], ele0) for p in ring], a.tol)
+        snap_note = (f"ring-around: 半径{st['radius']:.0f}m の {st['sub']} を通る閉路 {st['len']:.0f}m"
+                     f"(元GPX {pre_cum[-1]:.0f}m) → {len(pts)}点。標高は起点の値で平坦扱い\n")
+    elif ways and a.route_osm:
         pre_cum = cumdist(pts)
         dom0 = a.domain if a.domain != 'auto' else \
                ('urban' if total_gain(pts) / max(pre_cum[-1] / 1000, 0.1) < 15 else 'mountain')
-        routed, st = route_on_graph(pts, ways, dom0, a.via_step, a.snap_max * 5)
+        corners = None if a.via_step > 0 else simplify(pts, a.via_tol)
+        routed, st = route_on_graph(pts, ways, dom0, a.via_step or 250.0, a.snap_max * 5,
+                                    K=8, streets=(dom0 == 'urban'), via_pts=corners)
         if st.get('ok'):
             before = pts
             pts = simplify(routed, a.tol)

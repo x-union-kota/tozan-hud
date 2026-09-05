@@ -500,7 +500,7 @@ with tempfile.TemporaryDirectory() as td:
     # 全点が格子の上(いずれかの街路線分から 1m 以内)
     segs = []
     lat0 = circ[0][0]
-    for (k, cls, line, sub) in ways:
+    for (k, cls, line, sub, _tags) in ways:
         if k != 'road' or sub in G.SNAP_EXCLUDE: continue
         for i in range(1, len(line)):
             segs.append((G._xy((line[i-1][0], line[i-1][1], 0), lat0), G._xy((line[i][0], line[i][1], 0), lat0), 0, 0.0))
@@ -523,6 +523,23 @@ with tempfile.TemporaryDirectory() as td:
     far = [(LA0 + 0.05, LO0 + 0.05, 5.0), (LA0 + 0.051, LO0 + 0.05, 5.0)]
     out2, st2 = G.route_on_graph(far, ways, 'urban', 100.0, 300.0)
     ok(st2['ok'] == 0 and out2 == far, 'with no road within reach nothing is invented')
+    # 囲む閉路: 格子のセル内の点を囲む最短の閉路は 1セル(200m×4=800m)。ラン重み表で residential を優先
+    ring, rst = G.enclosing_loop(ways, (LA0 + 50.0 / KY, LO0 + 50.0 / KX), 'urban', r_min=50.0, r_max=1000.0, prefer=('residential',))
+    ok(ring is not None and abs(rst['len'] - 800.0) < 5.0, f'enclosing loop around a cell point is that cell ({rst.get("len", 0):.0f}m)')
+    ring2 = G.orient_loop(ring, (LA0 + 50.0 / KY, LO0 - 50.0 / KX, 0.0), ccw=True) if ring else None
+    okc = ring2 is not None and G.hav(ring2[0], ring2[-1]) < 1
+    if okc:
+        rxy = [G._xy(p, LA0) for p in ring2]
+        okc = sum(rxy[i - 1][0] * rxy[i][1] - rxy[i][0] * rxy[i - 1][1] for i in range(len(rxy))) > 0
+    ok(okc, 'orient_loop closes the ring and makes it counter-clockwise')
+    # ラン重み表: 通行禁止・歩道の無い trunk・駐車場通路は使わない / 歩道タグ付き車道は受け皿
+    ok(G.run_weight('footway', {'foot': 'no'}, G.STREET_W) is None, 'foot=no is excluded')
+    ok(G.run_weight('service', {'access': 'private'}, G.STREET_W) is None, 'access=private is excluded')
+    ok(G.run_weight('trunk', {}, G.STREET_W) is None and G.run_weight('trunk', {'sidewalk': 'both'}, G.STREET_W) == 1.1,
+       'trunk needs a sidewalk tag; tagged carriageways cost 1.1')
+    ok(G.run_weight('service', {'service': 'parking_aisle'}, G.STREET_W) == 3.0, 'parking aisles cost 3.0')
+    ok(G.run_weight('path', {'surface': 'gravel'}, G.STREET_W) == 1.4 and G.run_weight('steps', {}, G.STREET_W) == 5.0,
+       'unpaved path 1.4 / steps 5.0')
 
 # ---- 都市デモ(晴海・皇居)は OSM の実在道路の上だけを通ること ----
 # 手描きの概形は岸壁や濠の上を通っていた(SPEC A-3 実測)。make_field_demo.py が角を数点指定して
@@ -543,7 +560,8 @@ def _dec_poly(s):
     return out
 _rjs = open(os.path.join(TOOLS, '..', 'src', 'routes.js'), encoding='utf-8').read()
 _routes = {r['id']: r for r in json.loads(_rjs.split('var ROUTES = ', 1)[1].strip().rstrip(';'))}
-for _rid, _fx, _lo, _hi in (('kokyo', 'kokyo-osm.json', 5400, 6000), ('harumi', 'harumi-osm.json', 1400, 2000)):
+# 皇居は公式約5.0km(反時計回り・内側の歩道リング)。角を門に置いた版は 5.7km で外苑側に膨らんでいた
+for _rid, _fx, _lo, _hi in (('kokyo', 'kokyo-osm.json', 4850, 5150), ('harumi', 'harumi-osm.json', 1400, 2000)):
     _fxp = os.path.join(TOOLS, '..', 'test', 'fixtures', _fx)
     if _rid not in _routes or not os.path.exists(_fxp):
         ok(False, f'{_rid}: route or fixture missing'); continue
@@ -573,6 +591,21 @@ for _rid, _fx, _lo, _hi in (('kokyo', 'kokyo-osm.json', 5400, 6000), ('harumi', 
     ok(_spur == 0, f'{_rid}: no out-and-back spurs (<20° turns: {_spur})')
     ok('vec' in _r and len(_r['vec'].get('road', [])) > 50, f'{_rid}: map vectors baked from the same OSM data')
     ok(all(0 < w['d'] < _r['dist'] for w in _r['wps'][1:-1]), f'{_rid}: intermediate WPs sit inside the loop')
+    _xyr = [G._xy(p, _lat0) for p in _pts]
+    _area = sum(_xyr[k - 1][0] * _xyr[k][1] - _xyr[k][0] * _xyr[k - 1][1] for k in range(len(_xyr)))
+    ok(_area > 0, f'{_rid}: counter-clockwise (left side faces the block/palace)')
+    _crossing = 0; _seen = set()
+    _cidx = {}
+    for _el in json.load(open(_fxp, encoding='utf-8'))['elements']:
+        _t = _el.get('tags') or {}
+        if _t.get('footway') == 'crossing' and _el.get('geometry'):
+            _cidx[_el['id']] = [G._xy((q['lat'], q['lon'], 0), _lat0) for q in _el['geometry']]
+    _csegs = [(l[k - 1], l[k], i, 0.0) for i, l in _cidx.items() for k in range(1, len(l))]
+    _ci = G.SegIndex(_csegs) if _csegs else None
+    for p in _dense:
+        for c in (_ci.candidates(G._xy(p, _lat0), 4.0, 3, None, -1.0) if _ci else []):
+            if c[2] not in _seen: _seen.add(c[2]); _crossing += 1
+    ok(_crossing <= (20 if _rid == 'kokyo' else 6), f'{_rid}: few street crossings ({_crossing}; signals/crossings are penalised)')
 
 # ---- その場モード: app.js の FAMOUS は gpx2route.py の FAMOUS と同一であること ----
 print('[famous sync]')
