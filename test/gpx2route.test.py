@@ -652,7 +652,7 @@ with tempfile.TemporaryDirectory() as td:
     ok('倍率: 中央値' in r.stdout, 'CT ratio reported')
     _m = _re_ct = None
     import re as _re2
-    _m = _re2.search(r'中央値 ([\d.]+)', r.stdout)
+    _m = _re2.search(r'行動時間の倍率: 中央値 ([\d.]+)', r.stdout)
     # 合成ログ: 往復 5.0km/+409m を 2.0h → 標準CT(登り 37+82=119分, 下り 33+49=82分 = 201分) に対し 0.59倍
     ok(_m and 0.5 < float(_m.group(1)) < 0.7, f'synthetic walker is ~0.6× the standard CT ({_m.group(1) if _m else "?"})')
     r2 = runt([])
@@ -663,6 +663,21 @@ with tempfile.TemporaryDirectory() as td:
     ok(r3.returncode == 0 and 4800 < json.load(open(dj, encoding='utf-8'))['dist'] < 5200, 'picked GPX (5.0km round trip) converts with gpx2route.py')
     r4 = subprocess.run([sys.executable, tool, '--emit-fetch', '139.235,35.615,139.280,35.640'], capture_output=True, text=True)
     ok(r4.returncode == 0 and 'trackpoints?bbox=139.235,35.615,139.280,35.640' in r4.stdout, '--emit-fetch prints the trackpoints API loop')
+
+# ---- 実データ: 高尾山の OSM 公開トレース6本(DEM標高付き)で標準CTの実測倍率 ----
+print('[takao traces]')
+_fxd = os.path.join(TOOLS, '..', 'test', 'fixtures', 'takao-traces')
+with tempfile.TemporaryDirectory() as td:
+    r = subprocess.run([sys.executable, os.path.join(TOOLS, 'osm_traces.py'), _fxd, '--start', '35.6322,139.2699',
+                        '--goal', '35.6252,139.2436', '--near', '300', '--anywhere', '--min-pts', '80', '--out', os.path.join(td, 'p')],   # fixture は50m間隔に打ち直し済み
+                       capture_output=True, text=True)
+    ok(r.returncode == 0 and '条件一致 6' in r.stdout, 'all 6 real traces pass the start/summit filter (' + r.stdout.strip().split('\n')[0] + ')')
+    import re as _re3
+    _mc = _re3.search(r'登りの倍率: 中央値 ([\d.]+) \(n=(\d+)', r.stdout)
+    _md = _re3.search(r'下りの倍率: 中央値 ([\d.]+) \(n=(\d+)', r.stdout)
+    # 2026-09-05 実測: 登り 0.68(n=5) / 下り 0.92(n=5)。標準式は登りで保守的、下りは休憩込みでほぼ実態通り
+    ok(_mc and int(_mc.group(2)) >= 5 and 0.55 < float(_mc.group(1)) < 0.85, f'ascent elapsed/CT median ≈ 0.68 ({_mc.group(1) if _mc else "?"})')
+    ok(_md and int(_md.group(2)) >= 5 and 0.75 < float(_md.group(1)) < 1.1, f'descent elapsed/CT median ≈ 0.92 ({_md.group(1) if _md else "?"})')
 
 # ---- その場モード: app.js の FAMOUS は gpx2route.py の FAMOUS と同一であること ----
 print('[famous sync]')

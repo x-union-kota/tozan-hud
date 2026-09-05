@@ -152,6 +152,7 @@ tools/
 ├── make_stars.py      星表生成→stars.js
 ├── gpx2route.py       実GPX→v3ルート変換(v3.2でDEM投入口。配布物。stdlibのみ)
 └── osm_traces.py      OSM公開トレースの選別→時刻付きGPX+標準CTとの実測倍率(引き返し限界のマージン較正用)
+                       高尾山で実測済み: 登り0.68 / 下り0.92(休憩込み・n=5)→ C-1 の60分マージンは維持(DATA_SOURCES 優先2b)
 test/
 ├── core.test.js       純ロジック 156件
 ├── app.smoke.js       jsdom統合 149件(sim経由の全画面フロー+v3.1回帰: 自宅導線・ラップゲート+v3.2: 目標ペース)
