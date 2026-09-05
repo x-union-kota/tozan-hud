@@ -90,6 +90,15 @@ node test/core.test.js && node test/app.smoke.js && python3 test/gpx2route.test.
   角だけに間引いて経由点にする(全点を経由点にすると路地でジグザグ)。
   `test/gpx2route.test.py [demo on OSM]` が routes.js の生成物を fixture の道路と突き合わせて守る(皇居 5.0±0.15km・
   反時計回り・横断≤20・全点が道路から5m以内)
+- **[v3.2] 山の概形も全廃 — 高尾・富士・南高尾を実データに(`data/real/`)**: 高尾=OSM公開トレース 2011-03-27 の
+  1号路登り(下りは稲荷山側の別ルートだったので、テストとデモの前提「ピストン」を守るため登りを鏡像にした。
+  `takao_loop_raw.gpx` に元の周回を残してある)、富士=同 2014-08-15 吉田ルート 五合目→頂上の登り区間(5.2km +1360m)、
+  南高尾=実GPX(TrailNote 2019-07-09、8.1km +434m)。全部 `gpx2route.py` で OSM吸着・DEM可視判定・WMM を通した
+  `--dump-json` の完全形を `make_field_demo.py` が読む。この過程で直した実データ起因の不具合:
+  ①`--dump-json` に poly/ele/cts/vec が無かった ②`<wpt type=start>` が往復・周回で終点側に落ちた(線分射影+start/goal固定)
+  ③`--max-reg` の切り捨てで POI が全滅していた(峰288件の後ろに並ぶため。峰だけを切るように)
+  ④**マッチャの連続性ペナルティが弱く、九十九折りで隣の脚へ 90m 飛んでいた**(`core.projectRange`: 前進30m超と後退を
+  0.1m/m に。実ログの往復トラバースで後戻り5回→0)。実GPXでは `--route-osm` は使わない(南高尾で +40% に膨らむ。吸着は -3%)
 - **[v3.2] その場モード(ルート無しのフリー走行)**: ルート選択の末尾「ここから」。実機で「その地点に行かないと
   始められない」のがストレスという要望から。現在地を起点に 1点だけのルートを作り、`along` を「動いた距離の積算」として
   扱うことで既存の表示(方位テープ・実効速度・目標ペース・地図の等高線・透視・星)がそのまま乗る。
@@ -141,21 +150,21 @@ src/
 ├── core.js       純ロジック層(距離計算・逸脱FSM・周回回転など) — node直require可
 ├── app.js         アプリ層(画面・状態・入力処理。最大のファイル)
 ├── astro.js       天文計算(太陽・月・惑星・恒星の方位仰角)
-├── routes.js      デモ4ルートのデータ(自動生成・手編集しない)
+├── routes.js      5ルート(晴海・皇居=OSM経路 / 高尾・富士・南高尾=実データ)(自動生成・手編集しない)
 ├── stars.js       星表データ(自動生成・手編集しない)
 ├── style.css
 └── template.html  ビルドの型
 tools/
 ├── build.py           単一HTML組み立て(BUILD/ROUTES/STARS/ASTRO/CSS/CORE/APPスロット)
-├── make_field_demo.py デモ4ルート生成→routes.js(晴海・皇居=OSM道路網の経路探索+vec焼き込み / 高尾・富士=概形)
-├── make_registry.py   デモ4ルートのレジストリ焼き込み→routes.js(手書き精選DB。実運用はgpx2route.py)
+├── make_field_demo.py routes.js 生成(晴海・皇居=OSM道路網の経路探索+vec焼き込み / 高尾・富士・南高尾=data/real/*.json をそのまま)
+├── make_registry.py   都市デモ2本のレジストリ焼き込み→routes.js(手書き精選DB。real:true のルートは触らない)
 ├── make_stars.py      星表生成→stars.js
 ├── gpx2route.py       実GPX→v3ルート変換(v3.2でDEM投入口。配布物。stdlibのみ)
 └── osm_traces.py      OSM公開トレースの選別→時刻付きGPX+標準CTとの実測倍率(引き返し限界のマージン較正用)
                        高尾山で実測済み: 登り0.68 / 下り0.92(休憩込み・n=5)→ C-1 の60分マージンは維持(DATA_SOURCES 優先2b)
 test/
-├── core.test.js       純ロジック 156件
-├── app.smoke.js       jsdom統合 149件(sim経由の全画面フロー+v3.1回帰: 自宅導線・ラップゲート+v3.2: 目標ペース)
+├── core.test.js       純ロジック 161件
+├── app.smoke.js       jsdom統合 151件(sim経由の全画面フロー+v3.1回帰: 自宅導線・ラップゲート+v3.2: 目標ペース)
 └── gpx2route.test.py  変換ツール 94件(OSM分類・seg・domain+v3.2 DEM: デコード/fetch/レイキャスト/ele検査、道路ベクタ: 分類/吸着/予算)
 dist/
 ├── index.html     ビルド成果物(これを配布・デプロイする)

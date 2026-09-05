@@ -2312,8 +2312,10 @@
       var terr = terrCache[tKey];
       if (terr && terr.url) {
         under = terr.url;
-        credit = '地図: 地理院タイル ・ 等高線' + (terr.step === 10 ? '10/50m' : '50m') +
-                 (r.vec ? ' / © OpenStreetMap contributors' : '');
+        // 山では OSM のベクタを描かない(等高線だけ)のでクレジットも地理院だけ。
+        // 実データ化した山ルートは vec を持つが、描いていないものの出典を並べると1行に収まらず
+        // スケールバーに重なる(高尾で実測)
+        credit = '地図: 地理院タイル ・ 等高線' + (terr.step === 10 ? '10/50m' : '50m');
       } else {
         credit = (terr && terr.flat) ? '' : '線図(地形未取得)';   // 平坦=「無い」のではなく「引かない」
       }

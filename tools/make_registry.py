@@ -106,6 +106,9 @@ def main():
     head, arr = txt.split('var ROUTES = ', 1)
     routes = json.loads(arr.rstrip().rstrip(';'))
     for r in routes:
+        if r.get('real'):        # gpx2route.py 生成(DEMレイキャストの可視判定・OSM POI・WMM 込み)はそのまま
+            sys.stderr.write(f"{r['id']}: 実データ(reg {len(r['reg'])}件 偏角 {r['dec']}°)そのまま\n")
+            continue
         # 起点近傍を基準に(polyデコードなしで済むようwps/座標は既知の起点DBから)
         anchor = {'harumi':(35.6474,139.7717),'takao':(35.6322,139.2699),
                   'kokyo':(35.6772,139.7524),'fuji':(35.3966,138.7333)}[r['id']]

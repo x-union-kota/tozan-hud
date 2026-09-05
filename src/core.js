@@ -383,8 +383,11 @@ var CORE = (function () {
       var along = route.cum[i] + segLen * r.t;
       var score = r.dist;
       if (prevAlong != null) {
+        // 連続性: 1fix(1〜5秒)で進める距離は数十m。九十九折りで隣の脚が 7m 以内に寄ると、
+        // 6m のGPSノイズだけで along が 90m 飛ぶ(高尾1号路の実ログで実測: 往復で5回)。
+        // 30m までは軽く、それ以上の前進と後退は 0.1m/m(=90m 飛ぶには 6m 以上の近さが要る)
         var d = along - prevAlong;
-        score += (d < 0) ? -d * 0.03 : d * 0.005;
+        score += (d < 0) ? -d * 0.1 : (d <= 30 ? d * 0.005 : 0.15 + (d - 30) * 0.1);
       }
       if (!best || score < best.score) {
         best = { seg: i, t: r.t, dist: r.dist, along: along, score: score };

@@ -163,6 +163,13 @@ API は `<ele>` を返さないので、地理院 DEM(dem_png z14 ≈ 7m/px)で�
 - fixture `test/fixtures/takao-traces/`(6本、DEM標高付き)で `[takao traces]` テストが中央値を固定している。
   ログを足すときは同じ手順で選別し、表を更新する。生ページは `takao-traces.zip`(25MB)として手元に保存
 
+## 優先2c: 山ルートを実データに(高尾・富士・南高尾)【v3.2 実装済み】
+
+`data/real/` に元GPX・Overpass応答・変換済みJSON。出典と再生成手順は `data/real/README.md`。
+高尾と富士は優先2b で集めた OSM 公開トレース(ODbL)から、南高尾は実GPX から `gpx2route.py` で変換
+(OSM吸着・DEM z12 可視判定・WMM偏角)。実GPXは `--snap-osm`(既定)で登山道へ寄せる。
+概形用の `--route-osm` は実GPXには使わない(南高尾で 8.1km→11.6km に膨らんだ。吸着は -3%)。
+
 ## 優先3: 星表 — 手動69星 → HYG Database + Stellarium星座線【v3.2 実装済み】
 
 要件「300星+88星座」を公開データで満たす。※当初案はBSC5+d3-celestialだったが、

@@ -9,8 +9,8 @@ Meta Ray-Ban Display(HUD+Neural Band)向けの登山/ランHUD。単一HTMLのWe
 
 ```bash
 python3 tools/build.py            # src/* → dist/index.html (単一HTML組み立て)
-node test/core.test.js            # 純ロジック 156件
-node test/app.smoke.js            # jsdom統合 149件 (要: npm install jsdom / dist を先にビルド)
+node test/core.test.js            # 純ロジック 161件
+node test/app.smoke.js            # jsdom統合 151件 (要: npm install jsdom / dist を先にビルド)
 python3 test/gpx2route.test.py    # 変換ツール 134件
 
 cp dist/index.html index.html && cp dist/sw.js sw.js   # 公開用コピー(GitHub Pages はリポジトリ直下を配信)
@@ -19,7 +19,8 @@ cp dist/index.html index.html && cp dist/sw.js sw.js   # 公開用コピー(GitH
 **編集後は必ず build → 3スイート全通過を確認してから完了とする。**
 デモルートのデータを触ったら `tools/make_field_demo.py` → `make_registry.py --wmm <WMM2025COF.zip>` の順で再生成してから build
 (星表はルートに依存しないので `make_stars.py` は星データを変えたときだけ)。
-**都市デモ(晴海・皇居)は手描きの概形ではなく、`test/fixtures/*-osm.json` の道路網上の経路**。
+**手描きの概形は全廃**。都市デモ(晴海・皇居)は `test/fixtures/*-osm.json` の道路網上の経路、
+山(高尾・富士・南高尾)は実GPX/OSM公開トレースの変換物 `data/real/*.json`(再生成手順は `data/real/README.md`)。
 晴海=交差点の角を `route_on_graph` で結ぶ / 皇居=皇居を囲む最短の閉路 `enclosing_loop`(=内側の歩道リング 5.06km、公式約5.0km)。
 角は交差点に置くこと。門や公園内に置くと外苑側へ引っ張られる(皇居で 5.7km になった)。
 
@@ -47,6 +48,7 @@ src/astro.js   天文計算(既知値と照合済み。触るなら要再照合)
 src/routes.js  src/stars.js  自動生成。手編集禁止(星表は make_stars.py --emit-fetch → --hyg/--lines)
 tools/build.py         単一HTML組み立て
 tools/gpx2route.py     実GPX→v3ルート変換(OSM/DEMのオフライン投入・--emit-query / --emit-dem-fetch)
+data/real/             実ルートの元GPX・OSM応答・変換済みJSON(README に再生成手順)
 tools/osm_traces.py    OSM公開トレース(trackpoints API)から使える実歩行ログを選別し、標準CT式との実測倍率を出す(--emit-fetch)
 dist/index.html dist/sw.js   ビルド成果物
 ./index.html ./sw.js         dist からの公開用コピー。GitHub Pages(Public)の配信元

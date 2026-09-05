@@ -37,12 +37,16 @@ const sleep = (ms) => new Promise(r => setTimeout(r, ms));
   ok(/晴海/.test(text()), 'route 1 (晴海) listed');
   key('ArrowRight');
   ok(/高尾山/.test(text()), '→ cycles to 高尾山 (piston)');
-  key('ArrowRight'); key('ArrowRight'); key('ArrowRight');
-  ok(/ここから/.test(text()), 'the 5th slot is その場モード (ここから)');
+  key('ArrowRight'); key('ArrowRight');
+  ok(/富士山/.test(text()), '→→ 皇居 → 富士山');
   key('ArrowRight');
-  ok(/晴海/.test(text()), 'cycles back to 晴海 (4 routes + ここから)');
-  key('ArrowRight');   // ← 富士山(4番目)も超えてループ確認
-  key('ArrowRight'); // 高尾山(ピストン)
+  ok(/南高尾/.test(text()), '5th route is 南高尾 (real GPX)');
+  key('ArrowRight');
+  ok(/ここから/.test(text()), 'the 6th slot is その場モード (ここから)');
+  key('ArrowRight');
+  ok(/晴海/.test(text()), 'cycles back to 晴海 (5 routes + ここから)');
+  key('ArrowRight');   // 高尾山
+  key('ArrowRight');   // 皇居(周回・urban)。以降の逸脱/詳細ページの流れはこのルートで踏む
 
   key('Enter');
   ok(T().S.mode === 'ready', 'Enter → ready');

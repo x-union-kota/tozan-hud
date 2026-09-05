@@ -170,11 +170,24 @@ def load_gpx(path):
     return trk, wps
 
 def snap_wp(wp, pts, cum):
-    best, bd = 0, 1e18
-    for i,p in enumerate(pts):
-        d = hav((wp[0],wp[1]), p)
-        if d < bd: bd, best = d, i
-    return round(cum[best])
+    """<wpt> を沿道距離へ。type=start は定義上 0、goal は終点(往復や周回では起点と終点が同じ座標なので、
+       最寄り点だけで決めると start が終点側に落ちる: 高尾往復・南高尾周回で実測)。他は線分へ射影"""
+    typ = (wp[3] or '') if len(wp) > 3 else ''
+    if typ == 'start': return 0
+    if typ == 'goal': return round(cum[-1])
+    lat0 = pts[0][0]
+    q = _xy((wp[0], wp[1], 0), lat0)
+    best, bd = 0.0, 1e18
+    prev = _xy(pts[0], lat0)
+    for i in range(1, len(pts)):
+        cur = _xy(pts[i], lat0)
+        d, _ = _pseg_pt(q, prev, cur)
+        if d < bd - 1:
+            vx, vy = cur[0] - prev[0], cur[1] - prev[1]; L2 = vx * vx + vy * vy
+            f = 0.0 if L2 == 0 else max(0.0, min(1.0, ((q[0] - prev[0]) * vx + (q[1] - prev[1]) * vy) / L2))
+            bd, best = d, cum[i - 1] + (cum[i] - cum[i - 1]) * f
+        prev = cur
+    return round(best)
 
 # ---------- v3: 内蔵著名峰DB(遠景の実線候補。OSMのbbox外もカバー) ----------
 FAMOUS = [
@@ -298,9 +311,12 @@ def build_reg(pts, osm_items, poi_types, poi_radius, peak_km, vis_names, max_reg
 
     dropped = 0
     if len(reg) > max_reg:
-        # 峰は上位を残し、POIは近い順に残す(既にその順で並んでいる)
-        dropped = len(reg) - max_reg
-        reg = reg[:max_reg]
+        # 上限は峰にだけ効かせる。POI(駅・小屋・温泉)はルート近傍の数件で、峰の後ろに並ぶので
+        # 単純な切り捨てだと全部消える(南高尾で実測: 峰288件 → 駅も温泉も落ちて POI0)
+        pk = [r for r in reg if r['t'] == 'peak']; po = [r for r in reg if r['t'] != 'peak']
+        keep = max(0, max_reg - len(po))
+        dropped = len(pk) - keep
+        reg = pk[:keep] + po
     for r in reg: del r['_s']
     return reg, dropped
 
@@ -1431,8 +1447,11 @@ def main():
     if a.osm and not osm_items and not ways:
         sys.stderr.write("⚠ OSM JSONから対象が1件も取れていない(クエリ/ファイルを確認)\n")
     if a.dump_json:
+        # routes.js にそのまま載せられる完全形(make_field_demo.py が data/real/*.json を読む)
         full = {'id': a.id, 'name': a.name, 'dist': round(total), 'gain': round(gain),
-                'wps': wps, 'reg': reg, 'segs': segs, 'dec': dec, 'domain': domain}
+                'poly': enc_poly(pts), 'ele': enc_ele(pts), 'cts': [[c[0], round(c[1])] for c in cts],
+                'wps': wps, 'reg': reg, 'segs': segs, 'dec': dec, 'domain': domain, 'real': True}
+        if vec: full['vec'] = vec
         json.dump(full, open(a.dump_json, 'w', encoding='utf-8'), ensure_ascii=False)
     print(obj + ',')
 
