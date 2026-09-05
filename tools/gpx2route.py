@@ -501,7 +501,7 @@ ROAD_CLASS = {
     'motorway_link': 4, 'trunk_link': 4, 'primary_link': 4,
     'secondary': 3, 'tertiary': 3, 'secondary_link': 3, 'tertiary_link': 3,
     'residential': 2, 'unclassified': 2, 'living_street': 2, 'pedestrian': 2,
-    'service': 1, 'footway': 1, 'path': 1, 'steps': 1, 'cycleway': 1, 'track': 1,
+    'service': 1, 'footway': 1, 'sidewalk': 1, 'path': 1, 'steps': 1, 'cycleway': 1, 'track': 1,
 }
 SNAP_EXCLUDE = ('motorway', 'motorway_link')       # 首都高等の車専用道へ吸着させない
 SNAP_TRAIL = ('path', 'footway', 'track', 'steps', 'pedestrian')   # mountainの主候補
@@ -519,6 +519,7 @@ def load_osm_ways(paths):
             line = [(g['lat'], g['lon']) for g in geom if 'lat' in g and 'lon' in g]
             if len(line) < 2: continue
             hw, rw = tags.get('highway'), tags.get('railway')
+            if hw == 'footway' and tags.get('footway') == 'sidewalk': hw = 'sidewalk'   # 車道沿いの歩道
             if hw in ROAD_CLASS: out.append(('road', ROAD_CLASS[hw], line, hw))
             elif rw in ('rail', 'subway', 'light_rail', 'monorail', 'tram'):
                 out.append(('rail', 1 if rw == 'subway' else 2, line, rw))
@@ -688,6 +689,237 @@ def snap_to_osm(pts, ways, domain, max_snap=60.0, step=10.0, beam=8, w_move=1.0,
           'mean': (sum(moved) / len(moved)) if moved else 0.0,
           'max': max(moved) if moved else 0.0}
     return out, st
+
+# ---------- v3.2: 道路グラフ上のルーティング(概形 → 実在の道だけで結ぶ) ----------
+# 「概形を道路に吸着させる」のは筋が悪い(道の無い場所を通る概形は直せない)。
+# 概形の点列を経由点とみなし、OSM道路グラフの最短経路でつなげば、結果は定義上100%道の上。
+ROUTE_W = {   # 経路コスト = 長さ × 係数。「大通りを一周」を作る前提で、
+    # 大通り沿いの歩道(footway=sidewalk)と歩行者道を最優先。公園の遊歩道(無印footway/path)や
+    # service(駐車場・私道)は遠回りしてでも避ける(皇居で実測: これらに5.6km+1.7km吸われた)
+    'sidewalk': 0.9, 'pedestrian': 1.0, 'cycleway': 1.0, 'living_street': 1.0,
+    'residential': 1.0, 'unclassified': 1.05, 'tertiary': 1.05, 'tertiary_link': 1.05,
+    'secondary': 1.1, 'secondary_link': 1.1, 'primary': 1.15, 'primary_link': 1.15,
+    'trunk': 1.3, 'trunk_link': 1.3,
+    'footway': 1.6, 'path': 1.8, 'track': 1.6, 'service': 1.8, 'steps': 3.0,
+}
+
+STREET_W = {   # 「大通りを一周」プリセット: 公園の遊歩道・私道は3倍のコスト(事実上使わない)
+    'sidewalk': 0.9, 'pedestrian': 1.0, 'cycleway': 1.0, 'living_street': 1.0,
+    'residential': 1.0, 'unclassified': 1.05, 'tertiary': 1.05, 'tertiary_link': 1.05,
+    'secondary': 1.1, 'secondary_link': 1.1, 'primary': 1.15, 'primary_link': 1.15,
+    'trunk': 1.3, 'trunk_link': 1.3,
+    'footway': 3.0, 'path': 3.0, 'track': 3.0, 'service': 3.0, 'steps': 4.0,
+}
+VIA_STREETS = ('sidewalk', 'pedestrian', 'cycleway', 'living_street', 'residential', 'unclassified',
+               'tertiary', 'tertiary_link', 'secondary', 'secondary_link', 'primary', 'primary_link')
+
+def build_road_graph(ways, domain='urban', guide=None, corridor=40.0, weights=None):
+    """→ (nodes:[(la,lo)], adj:{i:[(j, cost, len)]}, lat0)。ノードは座標を1e-6度で丸めて同一視。
+       guide(概形の点列)を渡すと、概形から corridor(m) より離れた辺のコストを距離に比例して
+       上げる(80m離れ=×2、200m離れ=×5)。これが無いと最短経路が概形の意図を無視して
+       公園の遊歩道や城内の小道へ回り込む(皇居で実測: 5.0km の概形が 8.6km になった)"""
+    lat0 = None
+    for (k, cls, line, sub) in ways:
+        if k == 'road' and line: lat0 = line[0][0]; break
+    if lat0 is None: return None
+    gidx = None
+    if guide and len(guide) >= 2:
+        gxy = [_xy(q, lat0) for q in guide]
+        gidx = SegIndex([(gxy[i - 1], gxy[i], 0, 0.0) for i in range(1, len(gxy))], cell=200.0)
+    def far_factor(la, lo):
+        if gidx is None: return 1.0
+        c = gidx.candidates(_xy((la, lo, 0), lat0), 2000.0, 1, None, -1.0)
+        d = c[0][0] if c else 2000.0
+        return 1.0 + max(0.0, d - corridor) / corridor
+    key2i, nodes, adj = {}, [], {}
+    def nid(la, lo):
+        k = (round(la, 6), round(lo, 6))
+        if k not in key2i:
+            key2i[k] = len(nodes); nodes.append((la, lo)); adj[key2i[k]] = []
+        return key2i[k]
+    for (k, cls, line, sub) in ways:
+        if k != 'road' or sub in SNAP_EXCLUDE: continue
+        if domain == 'mountain' and sub not in SNAP_TRAIL and cls <= 1: continue
+        w = (weights or ROUTE_W).get(sub, 1.2)
+        prev = None
+        for (la, lo) in line:
+            i = nid(la, lo)
+            if prev is not None and prev != i:
+                d = hav((nodes[prev][0], nodes[prev][1]), (la, lo))
+                ff = far_factor((nodes[prev][0] + la) / 2, (nodes[prev][1] + lo) / 2)
+                adj[prev].append((i, d * w * ff, d)); adj[i].append((prev, d * w * ff, d))
+                EDGE_LIST.append((prev, i)); EDGE_COST.append(w * ff); EDGE_SUB.append(sub)
+            prev = i
+    edge_idx = SegIndex([(_xy((nodes[u][0], nodes[u][1], 0), lat0), _xy((nodes[v][0], nodes[v][1], 0), lat0), k, 0.0)
+                         for k, (u, v) in enumerate(EDGE_LIST)])
+    return nodes, adj, lat0, edge_idx
+
+def nearest_node(nodes, la, lo, r):
+    best, bi = r, None
+    for i, (a, b) in enumerate(nodes):
+        if abs(a - la) * 110540.0 > r or abs(b - lo) * 111320.0 * 0.8 > r: continue
+        d = hav((a, b), (la, lo))
+        if d < best: best, bi = d, i
+    return bi, best
+
+def attach_point(nodes, adj, lat0, edge_idx, la, lo, r):
+    """点を最寄りの**辺**へ射影し、その射影点を新ノードとして辺を分割して繋ぐ → ノード番号 / None。
+       最寄り「ノード」に寄せると、交差点や公園の小道のノードが拾われて脇道へ往復する
+       スパイクが立つ(皇居で実測: 5.0km の概形が 8.6km に)。辺への射影ならそれが起きない"""
+    return [x[0] for x in attach_points(nodes, adj, lat0, edge_idx, la, lo, r, 1)] or [None]
+
+def attach_points(nodes, adj, lat0, edge_idx, la, lo, r, k, allowed=None):
+    """最寄り k 本の辺それぞれへ射影点を新ノードとして挿す → [(ノード番号, 射影距離), ...]
+       allowed を渡すと、その種別の辺だけを候補にする(経由点を公園の小道に落とさない)"""
+    # allowed 指定時は近い順に多めに引いて種別で絞る(濠沿いは footway/steps が最寄りを埋め尽くし、
+    # 数十本では大通りの歩道に届かない: 大手門で実測)
+    cs = edge_idx.candidates(_xy((la, lo, 0), lat0), r, k * 60 if allowed else k, None, -1.0)
+    out = []
+    for (d, q, eid, _s) in cs:
+        if allowed and EDGE_SUB[eid] not in allowed: continue
+        if len(out) >= k: break
+        u, v = EDGE_LIST[eid]
+        pla, plo = q[1] / 110540.0, q[0] / (111320.0 * math.cos(math.radians(lat0)))
+        n = len(nodes); nodes.append((pla, plo)); adj[n] = []
+        du, dv = hav(nodes[u], (pla, plo)), hav((pla, plo), nodes[v])
+        wpm = EDGE_COST[eid]
+        adj[u].append((n, du * wpm, du)); adj[n].append((u, du * wpm, du))
+        adj[v].append((n, dv * wpm, dv)); adj[n].append((v, dv * wpm, dv))
+        # 車道の中心線に落とした経由点は、歩道を走る経路から見ると「車道へ渡って戻る」ひげになる。
+        # 歩道系が近くにあるならそちらを選ばせるため、車道系の射影距離に歩道1本分(15m)を上乗せ
+        out.append((n, d + (0.0 if (not allowed or EDGE_SUB[eid] in WALK_STREETS) else VIA_CARRIAGEWAY_BIAS)))
+    return out
+
+WALK_STREETS = ('sidewalk', 'pedestrian', 'cycleway', 'living_street')
+VIA_CARRIAGEWAY_BIAS = 15.0
+
+EDGE_LIST, EDGE_COST, EDGE_SUB = [], [], []
+
+def dijkstra_multi(adj, src, dsts, limit=1e18):
+    """src から各 dst への最短コスト経路の実距離 {dst: m}。全部見つかるか limit を超えたら打ち切り。
+       返すのは重み付きコストではなく実距離(m)。遷移コスト |網−直線| をコストで測ると、歩道(×0.9)の
+       経路が直線より短く見えて車道中心の候補が選ばれ、歩道から車道へ渡って戻る16mのひげが立つ(晴海で実測)"""
+    import heapq
+    want = set(dsts); dist = {src: 0.0}; metre = {src: 0.0}; pq = [(0.0, src)]; out = {}
+    while pq and want:
+        d, u = heapq.heappop(pq)
+        if d > dist.get(u, 1e18): continue
+        if u in want: out[u] = metre[u]; want.discard(u)
+        if d > limit: break
+        for (v, c, l) in adj.get(u, ()):
+            nd = d + c
+            if nd < dist.get(v, 1e18):
+                dist[v] = nd; metre[v] = metre[u] + l; heapq.heappush(pq, (nd, v))
+    return out
+
+def dijkstra(adj, src, dst):
+    import heapq
+    dist = {src: 0.0}; prev = {}; pq = [(0.0, src)]
+    while pq:
+        d, u = heapq.heappop(pq)
+        if u == dst: break
+        if d > dist.get(u, 1e18): continue
+        for (v, c, _l) in adj.get(u, ()):
+            nd = d + c
+            if nd < dist.get(v, 1e18):
+                dist[v] = nd; prev[v] = u; heapq.heappush(pq, (nd, v))
+    if dst not in dist: return None
+    path = [dst]
+    while path[-1] != src: path.append(prev[path[-1]])
+    return path[::-1]
+
+def route_on_graph(pts, ways, domain='urban', via_step=250.0, snap_r=300.0, K=4, LAM=2.5, debug=None, streets=False, via_pts=None):
+    """概形 pts を via_step ごとの経由点にし、各経由点を snap_r 以内の最寄りノードへ寄せ、
+       隣接する経由点どうしを最短経路で結ぶ。→ (点列, 統計dict)
+       via_pts を渡すと概形の等間隔サンプルではなく、その点列だけを経由点にする(数個の角だけ指定して
+       残りは道路網の最短路に任せる「大通りを一周」用)"""
+    del EDGE_LIST[:]; del EDGE_COST[:]; del EDGE_SUB[:]
+    # via_pts(角だけ指定)のときは概形の回廊ペナルティを切る。角を結ぶ直線は大通りから数百m離れ、
+    # 本来通るべき道が「回廊外」扱いで数倍のコストになってしまう(皇居で実測: 半蔵門→桜田門が網8965)
+    g = build_road_graph(ways, domain, guide=(None if via_pts else pts), weights=(STREET_W if streets else None))
+    if not g: return pts, {'via': 0, 'ok': 0, 'skipped': 0}
+    nodes, adj, lat0, edge_idx = g
+    cum = cumdist(pts)
+    vias, t = [], 0.0
+    while t <= cum[-1]:
+        i = 1
+        while i < len(cum) and cum[i] < t: i += 1
+        if i >= len(cum): vias.append(pts[-1]); break
+        f = (t - cum[i - 1]) / max(1e-9, cum[i] - cum[i - 1])
+        vias.append((pts[i - 1][0] + (pts[i][0] - pts[i - 1][0]) * f,
+                     pts[i - 1][1] + (pts[i][1] - pts[i - 1][1]) * f, pts[i - 1][2]))
+        t += via_step
+    if hav(vias[-1], pts[-1]) > 1: vias.append(pts[-1])
+    if via_pts: vias = [(v[0], v[1], v[2] if len(v) > 2 else 0.0) for v in via_pts]
+    # 経由点ごとに最寄り K 本の辺への射影を候補にし、系列全体を DP で選ぶ(HMM型マップマッチング)。
+    # 遷移コスト = |網上の距離 − 経由点間の直線距離|。候補を1つに決め打ちすると、隣り合う
+    # 射影が別の道に落ちて往復のスパイクが立つ(皇居で実測: 概形5.0kmが8.8kmに)
+    cands, kept = [], []                                   # kept: 候補が取れた経由点(落ちた点で添字がずれないよう別持ち)
+    for v in vias:
+        cs = attach_points(nodes, adj, lat0, edge_idx, v[0], v[1], snap_r, K, VIA_STREETS if streets else None)
+        if cs: cands.append(cs); kept.append(v)
+    if not cands: return pts, {'via': len(vias), 'ok': 0, 'skipped': 0}
+    # 周回(始点=終点)は最初と最後の経由点を同じ辺に落とす。別々に選ぶと始点で数十mの
+    # ひげ(別の歩道へ渡って戻る)が立つ(皇居・桜田門で実測)。始点候補ごとに DP を回して最良を採る
+    closed = len(cands) > 2 and hav(kept[0], kept[-1]) < 1.0
+    nds = [None]
+    for i in range(1, len(cands)):
+        straight = hav(kept[i], kept[i - 1])
+        # 前の候補それぞれから、今の候補全部への網距離をまとめて引く
+        nds.append([dijkstra_multi(adj, pn, [c[0] for c in cands[i]], limit=straight * 4 + 2000) for (pn, _d) in cands[i - 1]])
+    def run_dp(start):
+        cost = [[(d if (start is None or ci == start) else 1e15) for ci, (_n, d) in enumerate(cands[0])]]
+        back = [[-1] * len(cands[0])]
+        for i in range(1, len(cands)):
+            straight = hav(kept[i], kept[i - 1]); nd = nds[i]
+            cur, bk = [], []
+            for ci, (n, d) in enumerate(cands[i]):
+                best, bj = None, -1
+                if start is not None and i == len(cands) - 1 and ci != start:
+                    cur.append(1e15); bk.append(0); continue
+                for j in range(len(cands[i - 1])):
+                    if n not in nd[j]: continue
+                    t = cost[i - 1][j] + d + LAM * abs(nd[j][n] - straight)
+                    if best is None or t < best: best, bj = t, j
+                if best is None: best, bj = 1e15, 0                 # 繋がらない候補は事実上禁止
+                cur.append(best); bk.append(bj)
+            cost.append(cur); back.append(bk)
+        j = min(range(len(cost[-1])), key=lambda x: cost[-1][x])
+        tot = cost[-1][j]
+        chosen = [0] * len(cands)
+        for i in range(len(cands) - 1, -1, -1):
+            chosen[i] = j; j = back[i][j]
+        return tot, chosen
+    if closed:
+        _t, chosen = min((run_dp(s) for s in range(len(cands[0]))), key=lambda r: r[0])
+    else:
+        _t, chosen = run_dp(None)
+    seq = [cands[i][chosen[i]][0] for i in range(len(cands))]
+    chain, ok, skipped = [], 0, 0
+    for li, (a, b) in enumerate(zip(seq, seq[1:])):
+        path = dijkstra(adj, a, b)
+        if not path: skipped += 1; continue
+        ok += 1
+        if debug is not None:
+            net = sum(hav(nodes[path[k - 1]], nodes[path[k]]) for k in range(1, len(path)))
+            debug.append((li, net, hav(vias[min(li, len(vias) - 1)], vias[min(li + 1, len(vias) - 1)])))
+        chain.extend(path if not chain else path[1:])
+    # 経由点ノードが経路の本線から外れた辺に落ちると「a→経由点→a」の往復(ひげ)が残る。
+    # 同じノードへ引き返す並びを潰す(交差点で歩道の枝に6m触って戻る例が晴海で出た)
+    i = 1
+    while i < len(chain) - 1:
+        if chain[i - 1] == chain[i + 1]: del chain[i:i + 2]; i = max(1, i - 1)
+        else: i += 1
+    out = [(nodes[i][0], nodes[i][1], 0.0) for i in chain]
+    if len(out) < 2: return pts, {'via': len(vias), 'ok': ok, 'skipped': skipped}
+    # 標高は元ルートの最寄り点から(道路グラフには標高が無い)
+    for i in range(len(out)):
+        best, be = 1e18, 0.0
+        for q in pts:
+            d = hav(out[i], q)
+            if d < best: best, be = d, q[2]
+        out[i] = (out[i][0], out[i][1], be)
+    return out, {'via': len(vias), 'ok': ok, 'skipped': skipped, 'nodes': len(nodes)}
 
 def route_deviation(orig, new):
     """origの各点から new 折れ線への距離 → (平均, 最大)。吸着で何m動いたかの実測値"""
@@ -936,6 +1168,8 @@ def main():
     ap.add_argument('--dem-src', default='dem_png', choices=['dem_png', 'dem5a_png'], help='タイル種別 (既定 dem_png。dem5a_pngはz15専用で欠損域あり)')
     ap.add_argument('--dem-radius-km', type=float, default=None, help='DL範囲: ルートbboxからの余裕km (既定は --peak-km と同じ)')
     # v3.2 OSM道路ベクタ
+    ap.add_argument('--route-osm', action='store_true', help='概形を経由点にして道路グラフの最短経路で結び直す(結果は100%%道の上)')
+    ap.add_argument('--via-step', type=float, default=250.0, help='--route-osm の経由点間隔 m (既定250)')
     ap.add_argument('--no-snap', action='store_true', help='--osm があってもルートの道路吸着をしない')
     ap.add_argument('--snap-max', type=float, default=60.0, help='吸着を諦める射影距離 m (既定60。堀・ブロック越えの誤吸着防止)')
     ap.add_argument('--no-vec', action='store_true', help='地図パネル用の道路ベクタを焼き込まない')
@@ -978,7 +1212,21 @@ def main():
     # --- v3.2: ルートの道路吸着。ジオメトリが変わるので距離/CT/WPスナップより先に済ませる ---
     ways = load_osm_ways(a.osm) if a.osm else []
     snap_note = ''
-    if ways and not a.no_snap:
+    if ways and a.route_osm:
+        pre_cum = cumdist(pts)
+        dom0 = a.domain if a.domain != 'auto' else \
+               ('urban' if total_gain(pts) / max(pre_cum[-1] / 1000, 0.1) < 15 else 'mountain')
+        routed, st = route_on_graph(pts, ways, dom0, a.via_step, a.snap_max * 5)
+        if st.get('ok'):
+            before = pts
+            pts = simplify(routed, a.tol)
+            after = cumdist(pts)[-1]
+            snap_note = (f"route-osm: 経由点{st['via']} → 最短経路{st['ok']}本"
+                         f"{f'(結べず{st["skipped"]})' if st['skipped'] else ''} / ノード{st['nodes']} → {len(pts)}点\n"
+                         f"  距離 {pre_cum[-1]:.0f}m → {after:.0f}m / 元ジオメトリとの差 平均{route_deviation(before, pts)[0]:.1f}m\n")
+        else:
+            snap_note = 'route-osm: 経由点を道路グラフに乗せられなかった(原ジオメトリを維持)\n'
+    elif ways and not a.no_snap:
         pre_cum = cumdist(pts); pre_gain = total_gain(pts)
         dom0 = a.domain if a.domain != 'auto' else \
                ('urban' if pre_gain / max(pre_cum[-1] / 1000, 0.1) < 15 else 'mountain')

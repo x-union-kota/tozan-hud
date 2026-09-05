@@ -475,6 +475,105 @@ with tempfile.TemporaryDirectory() as td:
     ok(r.returncode == 0 and 'ncei.noaa.gov' in r.stdout and 'TEST_VALUES' in r.stdout,
        'emit-wmm-fetch prints both the coefficients and the official test values')
 
+# ---- v3.2: 道路グラフ上のルーティング(--route-osm) ----
+# 概形は道の無い場所を通り得るので「吸着」では直らない。経由点を道路グラフの最短経路で
+# 結べば結果は定義上100%道の上。碁盤目の街路に円形の概形を置いて確かめる
+print('[route-osm]')
+with tempfile.TemporaryDirectory() as td:
+    LA0, LO0 = 35.00, 139.00
+    KX = 111320.0 * math.cos(math.radians(LA0)); KY = 110540.0
+    def way(i, t, l): return {'type': 'way', 'id': i, 'tags': t, 'geometry': [{'lat': a, 'lon': b} for (a, b) in l]}
+    els, wid = [], 1
+    for k in range(-3, 4):                       # 200m 間隔の碁盤目(±600m)
+        y = LA0 + k * 200.0 / KY; x = LO0 + k * 200.0 / KX
+        els.append(way(wid, {'highway': 'residential'}, [(y, LO0 + j * 200.0 / KX) for j in range(-3, 4)])); wid += 1
+        els.append(way(wid, {'highway': 'residential'}, [(LA0 + j * 200.0 / KY, x) for j in range(-3, 4)])); wid += 1
+    # 中央を貫く高速道路(吸着・経路の候補から外れるべき)
+    els.append(way(wid, {'highway': 'motorway'}, [(LA0 + 5.0 / KY, LO0 + j * 200.0 / KX) for j in range(-3, 4)]))
+    osm = os.path.join(td, 'grid.json'); json.dump({'elements': els}, open(osm, 'w'))
+    ways = G.load_osm_ways([osm])
+    # 概形: 半径 300m の円(格子の上には乗っていない)
+    circ = [(LA0 + 300.0 * math.cos(t) / KY, LO0 + 300.0 * math.sin(t) / KX, 5.0)
+            for t in [i * 2 * math.pi / 36 for i in range(37)]]
+    out, st = G.route_on_graph(circ, ways, 'urban', 150.0, 300.0)
+    ok(st['ok'] > 0 and st['skipped'] == 0, f'every via point is joined by a road path ({st["ok"]} legs)')
+    # 全点が格子の上(いずれかの街路線分から 1m 以内)
+    segs = []
+    lat0 = circ[0][0]
+    for (k, cls, line, sub) in ways:
+        if k != 'road' or sub in G.SNAP_EXCLUDE: continue
+        for i in range(1, len(line)):
+            segs.append((G._xy((line[i-1][0], line[i-1][1], 0), lat0), G._xy((line[i][0], line[i][1], 0), lat0), 0, 0.0))
+    idx = G.SegIndex(segs)
+    worst = 0.0
+    for p in G.densify(out, 5.0):
+        c = idx.candidates(G._xy(p, lat0), 50.0, 1, None, -1.0)
+        worst = max(worst, c[0][0] if c else 50.0)
+    ok(worst < 1.0, f'the routed line lies on the streets everywhere (max {worst:.2f}m off)')
+    # 高速道路(motorway)は使わない
+    on_mw = 0
+    for p in G.densify(out, 5.0):
+        xm = (p[1] - LO0) * KX
+        on_vertical = min(abs(xm - k * 200.0) for k in range(-3, 4)) < 1.0    # 縦の街路との交点は除く
+        if abs((p[0] - LA0) * KY - 5.0) < 0.5 and abs(xm) < 580 and not on_vertical: on_mw += 1
+    ok(on_mw == 0, 'the motorway through the middle is never used')
+    L = G.cumdist(out)[-1]
+    ok(1600 < L < 2600, f'a 300m-radius loop on a 200m grid comes out around 2km ({L:.0f}m)')
+    # 道の無い場所: グラフに何も乗せられなければ原ジオメトリを返す(嘘の道を作らない)
+    far = [(LA0 + 0.05, LO0 + 0.05, 5.0), (LA0 + 0.051, LO0 + 0.05, 5.0)]
+    out2, st2 = G.route_on_graph(far, ways, 'urban', 100.0, 300.0)
+    ok(st2['ok'] == 0 and out2 == far, 'with no road within reach nothing is invented')
+
+# ---- 都市デモ(晴海・皇居)は OSM の実在道路の上だけを通ること ----
+# 手描きの概形は岸壁や濠の上を通っていた(SPEC A-3 実測)。make_field_demo.py が角を数点指定して
+# 道路網の最短路で結ぶ方式に変えたので、生成物 routes.js をそのまま検証する
+print('[demo on OSM]')
+def _dec_poly(s):
+    out, i, la, lo = [], 0, 0, 0
+    while i < len(s):
+        vals = []
+        for _w in (0, 1):
+            r = sh = 0
+            while True:
+                b = ord(s[i]) - 63; i += 1; r |= (b & 0x1f) << sh; sh += 5
+                if b < 0x20: break
+            vals.append(~(r >> 1) if r & 1 else r >> 1)
+        la += vals[0]; lo += vals[1]
+        out.append((la / 1e5, lo / 1e5, 0.0))
+    return out
+_rjs = open(os.path.join(TOOLS, '..', 'src', 'routes.js'), encoding='utf-8').read()
+_routes = {r['id']: r for r in json.loads(_rjs.split('var ROUTES = ', 1)[1].strip().rstrip(';'))}
+for _rid, _fx, _lo, _hi in (('kokyo', 'kokyo-osm.json', 5400, 6000), ('harumi', 'harumi-osm.json', 1400, 2000)):
+    _fxp = os.path.join(TOOLS, '..', 'test', 'fixtures', _fx)
+    if _rid not in _routes or not os.path.exists(_fxp):
+        ok(False, f'{_rid}: route or fixture missing'); continue
+    _r = _routes[_rid]; _pts = _dec_poly(_r['poly']); _lat0 = _pts[0][0]
+    _segs = []
+    for _el in json.load(open(_fxp, encoding='utf-8'))['elements']:
+        _t = _el.get('tags') or {}; _g = _el.get('geometry')
+        if not _g or not _t.get('highway') or _t['highway'].startswith('motorway'): continue
+        _line = [G._xy((q['lat'], q['lon'], 0), _lat0) for q in _g]
+        _segs += [(_line[k - 1], _line[k], 0, 0.0) for k in range(1, len(_line))]
+    _idx = G.SegIndex(_segs)
+    _dense = []
+    for k in range(1, len(_pts)):
+        _n = max(1, int(G.hav(_pts[k - 1], _pts[k]) / 10))
+        _dense += [(_pts[k - 1][0] + (_pts[k][0] - _pts[k - 1][0]) * j / _n,
+                    _pts[k - 1][1] + (_pts[k][1] - _pts[k - 1][1]) * j / _n, 0) for j in range(_n)]
+    _far = [c[0][0] if c else 99.0 for c in (_idx.candidates(G._xy(p, _lat0), 30.0, 1, None, -1.0) for p in _dense)]
+    ok(max(_far) < 5.0, f'{_rid}: every 10m sample lies on an OSM road (max {max(_far):.1f}m off)')
+    ok(_lo < _r['dist'] < _hi, f'{_rid}: length {_r["dist"]}m is the real loop ({_lo}-{_hi})')
+    ok(G.hav(_pts[0], _pts[-1]) < 1.0, f'{_rid}: closed loop')
+    _spur = 0
+    for k in range(1, len(_pts) - 1):
+        a, b, c = (G._xy(_pts[k - 1], _lat0), G._xy(_pts[k], _lat0), G._xy(_pts[k + 1], _lat0))
+        v1, v2 = (a[0] - b[0], a[1] - b[1]), (c[0] - b[0], c[1] - b[1])
+        cs = (v1[0] * v2[0] + v1[1] * v2[1]) / (math.hypot(*v1) * math.hypot(*v2) + 1e-9)
+        if cs > math.cos(math.radians(20)): _spur += 1
+    ok(_spur == 0, f'{_rid}: no out-and-back spurs (<20° turns: {_spur})')
+    ok('vec' in _r and len(_r['vec'].get('road', [])) > 50, f'{_rid}: map vectors baked from the same OSM data')
+    ok(all(0 < w['d'] < _r['dist'] for w in _r['wps'][1:-1]), f'{_rid}: intermediate WPs sit inside the loop')
+
 # ---- その場モード: app.js の FAMOUS は gpx2route.py の FAMOUS と同一であること ----
 print('[famous sync]')
 import re as _re

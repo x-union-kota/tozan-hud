@@ -40,6 +40,10 @@ curl -sG https://overpass-api.de/api/interpreter --data-urlencode 'data=[out:jso
 - 結論: 晴海は**実GPXか実コース**が要る。概形が「道の無い場所」を通っている限り、
   吸着で直せるものではない。fixture は取り込み済み(`test/fixtures/harumi-osm.json`、0.9MB)
 
+**対処(2026-09-05)**: 概形を廃止し、晴海・皇居とも **OSM道路網上の経路探索**で生成するようにした
+(`route_on_graph`、DATA_SOURCES.md 優先2 末尾)。交差点の角だけを指定し、間は歩道優先の最短路。
+皇居 5.69km / 晴海フラッグ街区一周 1.65km、全点が道路から2.2m以内、ひげ無し(`[demo on OSM]` テストで固定)。
+
 ---
 
 ## B. 透視・星座は頭の向きに追従する【即時・最優先バグ】
