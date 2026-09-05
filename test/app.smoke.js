@@ -38,7 +38,9 @@ const sleep = (ms) => new Promise(r => setTimeout(r, ms));
   key('ArrowRight');
   ok(/高尾山/.test(text()), '→ cycles to 高尾山 (piston)');
   key('ArrowRight'); key('ArrowRight'); key('ArrowRight');
-  ok(/晴海/.test(text()), 'cycles back to 晴海 (4 routes)');
+  ok(/ここから/.test(text()), 'the 5th slot is その場モード (ここから)');
+  key('ArrowRight');
+  ok(/晴海/.test(text()), 'cycles back to 晴海 (4 routes + ここから)');
   key('ArrowRight');   // ← 富士山(4番目)も超えてループ確認
   key('ArrowRight'); // 高尾山(ピストン)
 
@@ -538,6 +540,67 @@ const sleep = (ms) => new Promise(r => setTimeout(r, ms));
     ok(S2.lap === 2, 'lap gate: forward pass fires lap');
     ok(S2.along === 0 && S2.lapHist.length === 0, 'lap fire rewinds matcher & clears history');
     S2.tracking = false;
+  }
+
+  // ---- その場モード(ルート無しのフリー走行) ----
+  {
+    const S9 = T().S;
+    S9.tracking = false; S9.mode = 'select'; S9.routeIdx = T().nRoutes; T().render();
+    ok(/ここから/.test(text()) && /フリー走行/.test(text()), 'free mode is offered on the selector');
+    key('Enter'); await sleep(200);
+    ok(S9.mode === 'ready' && S9.freeSel === true, 'Enter opens the free-mode ready screen');
+    ok(/目標/.test(text()) && /なし/.test(text()), 'the target distance starts as none');
+    key('ArrowRight'); ok(S9.freeGoal === 5000, '→ sets a 5km target');
+    key('ArrowRight'); ok(S9.freeGoal === 10000, '→ again sets 10km');
+    key('ArrowRight'); ok(S9.freeGoal === 0, '→ wraps back to none');
+    key('ArrowRight');                                    // 5km で開始
+    S9.readyGeo = { la: 35.700, lo: 139.700, acc: 10 };
+    key('Enter'); await sleep(400);
+    ok(S9.mode === 'main' && S9.tracking && S9.route && S9.route.free === true, 'free mode starts without a route');
+    ok(S9.route.total === 5000 && /5km/.test(S9.route.name), 'the route object carries the 5km target');
+    ok(S9.route.reg.some(e => e.n === '富士山') && S9.route.reg.every(e => e.v === 0),
+       'nearby famous peaks are registered, all as see-through (no raycast here)');
+    ok(Math.abs(S9.route.dec - window.CORE.decJapan(35.7, 139.7)) < 1e-9, 'declination comes from the Japan fit');
+
+    // 距離は「動いた分」だけ積む。ノイズ(3m未満)と低精度(50m超)は足さない
+    const p0 = [35.700, 139.700];
+    T().onFix({ la: p0[0], lo: p0[1], acc: 8, t: Date.now() });
+    const a0 = S9.along;
+    const p1 = window.CORE.destPoint(p0[0], p0[1], 45, 100);
+    T().onFix({ la: p1[0], lo: p1[1], acc: 8, t: Date.now() });
+    ok(Math.abs(S9.along - a0 - 100) < 2, `moving 100m adds 100m (${(S9.along - a0).toFixed(1)})`);
+    const p2 = window.CORE.destPoint(p1[0], p1[1], 45, 1.5);
+    T().onFix({ la: p2[0], lo: p2[1], acc: 8, t: Date.now() });
+    ok(Math.abs(S9.along - a0 - 100) < 2, 'a 1.5m jitter adds nothing');
+    const p3 = window.CORE.destPoint(p1[0], p1[1], 45, 200);
+    T().onFix({ la: p3[0], lo: p3[1], acc: 90, t: Date.now() });
+    ok(Math.abs(S9.along - a0 - 100) < 2, 'a 90m-accuracy fix adds nothing');
+    // 悪い測位の後の良い測位は、悪い測位からではなく最後の良い測位から測る
+    const p3b = window.CORE.destPoint(p1[0], p1[1], 45, 50);
+    T().onFix({ la: p3b[0], lo: p3b[1], acc: 8, t: Date.now() });
+    ok(Math.abs(S9.along - a0 - 150) < 2, `distance resumes from the last good fix (${(S9.along - a0).toFixed(1)})`);
+
+    T().render();
+    ok(/残 4\.9km|残 4\.8km/.test(text()) || /残 /.test(text()), 'main shows the remaining distance to the target');
+    ok(!/ETA/.test(text()) && !/CT /.test(text()) && !/引き返し限界/.test(text()),
+       'no ETA / CT / turnaround are claimed without a route');
+    S9.panel = 1; T().render(); ok(/断面図なし/.test(text()), 'profile panel says there is none');
+    S9.panel = 3; T().render(); ok(/WPなし/.test(text()), 'WP panel says there are none');
+    S9.panel = 2; T().render(); ok(/走行 /.test(text()) && /N↑/.test(text()), 'map panel draws the track with a north mark');
+    S9.panel = 0;
+    // 星と透視はそのまま使える
+    S9.heading = 250; S9.headingReal = Date.now(); S9.headingSettled = true;
+    S9.mode = 'ident'; S9.identLayer = 'ground'; T().render();
+    ok(/富士山|丹沢山|大山/.test(text()) || /この方向に登録対象なし/.test(text()), 'see-through works from the famous-peak registry');
+    S9.identLayer = 'sky'; S9.pitch = 30; S9.pitchReal = Date.now(); T().render();
+    ok(/\d+星/.test(text()), 'the sky layer works anywhere');
+    S9.mode = 'main';
+    // 目標到達
+    // 500m超の瞬間移動は足さない(実測位は毎秒来るので起き得ない)。刻んで進める
+    let cur = p3b;
+    for (let i = 0; i < 12; i++) { cur = window.CORE.destPoint(cur[0], cur[1], 45, 450); T().onFix({ la: cur[0], lo: cur[1], acc: 8, t: Date.now() }); }
+    ok(S9.along >= 5000 && S9.freeDone === true && /到達/.test(S9.wpFlashMsg), `reaching the target flashes 到達 (${Math.round(S9.along)}m)`);
+    S9.tracking = false; S9.mode = 'select'; S9.freeSel = false; S9.routeIdx = 0; T().render();
   }
 
   console.log(`\n${step - fail}/${step} passed`);

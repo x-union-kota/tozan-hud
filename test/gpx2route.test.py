@@ -475,5 +475,17 @@ with tempfile.TemporaryDirectory() as td:
     ok(r.returncode == 0 and 'ncei.noaa.gov' in r.stdout and 'TEST_VALUES' in r.stdout,
        'emit-wmm-fetch prints both the coefficients and the official test values')
 
+# ---- その場モード: app.js の FAMOUS は gpx2route.py の FAMOUS と同一であること ----
+print('[famous sync]')
+import re as _re
+_src = open(os.path.join(TOOLS, '..', 'src', 'app.js'), encoding='utf-8').read()
+_m = _re.search(r'var FAMOUS = \[(.*?)\n  \];', _src, _re.S)
+_rows = _re.findall(r"\['([^']+)',([\d.]+),([\d.]+),(\d+)\]", _m.group(1)) if _m else []
+_app = {n: (float(la), float(lo), int(el)) for n, la, lo, el in _rows}
+_py = {n: (la, lo, el) for (n, la, lo, el) in G.FAMOUS}
+ok(len(_app) == len(_py) and len(_app) > 40, f'app.js FAMOUS has the same {len(_py)} peaks as gpx2route.py')
+_diff = [n for n in _py if n not in _app or any(abs(a - b) > 1e-6 for a, b in zip(_app[n], _py[n]))]
+ok(not _diff, 'every peak matches by name, position and elevation' + (f' (mismatch: {_diff[:3]})' if _diff else ''))
+
 print(f"\n{STEP[0] - len(FAILS)}/{STEP[0]} passed")
 sys.exit(1 if FAILS else 0)

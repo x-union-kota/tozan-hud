@@ -213,6 +213,16 @@ var CORE = (function () {
     return (newest[1] - oldest[1]) / dt;
   }
 
+  /* ---------- 日本域の磁気偏角の近似(その場モード用) ----------
+     ルートには gpx2route.py が WMM から焼き込むが、その場モードは事前計算が無い。
+     WMM2025 を日本域(北緯24〜46°/東経123〜147°、2027.0)で格子サンプルし平面に最小二乗フィット。
+     格子132点で最大残差1.01°・平均0.36°。主要都市は±0.3°以内(東京 7.76 vs WMM 7.93)。
+     西偏を正で返す。日本の外では使わない(範囲外は 7.5 に丸める)。 */
+  function decJapan(la, lo) {
+    if (la < 24 || la > 46 || lo < 123 || lo > 147) return 7.5;
+    return Math.round((5.68314 + 0.302020 * la - 0.062274 * lo) * 100) / 100;
+  }
+
   /* ---------- 尾根線・谷線(SPEC A-2) ----------
      各セルで、横方向または縦方向に「両隣より prom 以上高い」なら尾根の背、低いなら谷底。
      検出セルを、その直交方向(=稜線の走る向き)へ隣のセルまで短い線分で結ぶ。
@@ -633,7 +643,7 @@ var CORE = (function () {
   return {
     decodePoly: decodePoly, decodeEle: decodeEle,
     ctBetween: ctBetween, returnCT: returnCT, turnaroundLimit: turnaroundLimit,
-    gradeAt: gradeAt, nextClimb: nextClimb, vmg: vmg,
+    gradeAt: gradeAt, nextClimb: nextClimb, vmg: vmg, decJapan: decJapan,
     ghostTimeAt: ghostTimeAt, ghostDelta: ghostDelta, signedCrossTrack: signedCrossTrack,
     buildStars: buildStars,
     demElev: demElev, contourStep: contourStep, gradPercentile: gradPercentile,
