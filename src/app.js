@@ -696,12 +696,16 @@
     S.finished.laps = S.lapTimes.slice();
     S.finished.summits = S.summitLog.slice();
     S.finished.peakTotal = Object.keys(lsGet('thud.peaks') || {}).length;
-    if (S.ghostSrc === 'pace' && S.paceGoal > 0 && !isLoopRoute()) {
-      S.finished.ghostDiff = elapsed - S.paceGoal;          // 目標ペースは経過時計そのものが基準
-      S.finished.ghostLbl = '目標ペース';
+    // サマリーのゴースト比も同じ式(ラベルのソースと一致させる)
+    var gdl = (S.ghostSrc && !isLoopRoute()) ? CORE.ghostDelta(S.ghostSrc, S.maxAlong, elapsed * 60,
+      { route: S.route, paceGoal: S.paceGoal, samples: (S.ghost && S.ghost.samples) || null }) : null;
+    if (gdl != null) {
+      S.finished.ghostDiff = -gdl / 60;
+      S.finished.ghostLbl = { ct: '標準CT', last: '前回の自分', pace: '目標ペース' }[S.ghostSrc] || 'ゴースト';
     } else {
       var gd = CORE.ctAt(S.route, S.maxAlong);
       S.finished.ghostDiff = (gd && gd > 10) ? (S.movingMin - gd) : null;
+      S.finished.ghostLbl = '標準CT';
     }
     if (S.track.length > 8 && !isFree()) {
       lsSet('thud.lastTrack.' + S.route.id, S.track.map(function (s) { return [s[0], s[3] || 0]; }));
@@ -1248,7 +1252,7 @@
       svg += '<line x1="' + x + '" y1="30" x2="' + x + '" y2="' + (mid ? 44 : 40) +
         '" stroke="' + (mid ? '#ffd83b' : '#6b675c') + '" stroke-width="' + (mid ? 3 : 2) + '"/>';
       svg += '<text x="' + x + '" y="' + H + '" fill="' + (mid ? '#ffd83b' : '#6b675c') +
-        '" font-size="' + (mid ? 18 : 15) + '" text-anchor="middle" font-family="inherit">' + lbl + '°</text>';
+        '" font-size="' + (mid ? 21 : 18) + '" text-anchor="middle" font-family="inherit">' + lbl + '°</text>';
     }
     var mk = tapeMarkers(ht);
     for (var i = 0; i < mk.length; i++) {
@@ -1256,7 +1260,7 @@
       if (Math.abs(d) > HALF) continue;
       var mx = (300 + d * (W / 2 - 20) / HALF).toFixed(0);
       svg += '<polygon points="' + mx + ',28 ' + (+mx - 5) + ',18 ' + (+mx + 5) + ',18" fill="' + mk[i].c + '"/>';
-      svg += '<text x="' + mx + '" y="15" fill="' + mk[i].c + '" font-size="15" text-anchor="middle" font-family="inherit">' + esc(mk[i].n) + '</text>';
+      svg += '<text x="' + mx + '" y="16" fill="' + mk[i].c + '" font-size="18" text-anchor="middle" font-family="inherit">' + esc(mk[i].n) + '</text>';
     }
     svg += '</svg>';
     return '<div id="tape" class="abs" style="top:0;height:' + H + 'px;line-height:0">' + svg + '</div>';
@@ -1286,9 +1290,7 @@
     var g = (S.proj && !urban && staleInfo().sec <= 600) ? CORE.gradeAt(S.route, S.along, 50) : null;
     var gTxt = g == null ? '—' : ((g >= 0 ? '↗ ' : '↘ ') + Math.abs(Math.round(g)) + '%');
     var nc = climbAhead();
-    var ncTxt = urban ? '' : (nc
-      ? Math.round(nc.startIn / 10) * 10 + 'm先 登り ' + Math.round(nc.len / 10) * 10 + 'm 平均' + Math.round(nc.avg) + '%'
-      : 'この先 8%超の登りなし');
+    var ncTxt = urban ? '' : (nc ? climbText(nc) : 'この先 8%超の登りなし');
     var margin = urban ? '' :
       '<div class="stat-row">引き返しマージン <span class="dim">◂ </span><span class="main-c">' + S.tbMargin + '分</span><span class="dim"> ▸</span></div>';
     return headingTape() +
@@ -1308,7 +1310,11 @@
     var nc = climbAhead();
     if (!nc || nc.startIn > 300) return null;
     if (Math.floor(Date.now() / 5000) % 2 !== 0) return null;
-    return { c: 'main-c', s: Math.round(nc.startIn / 10) * 10 + 'm先 登り' + Math.round(nc.len / 10) * 10 + 'm 平均' + Math.round(nc.avg) + '%' };
+    return { c: 'main-c', s: climbText(nc) };
+  }
+  function climbText(nc) {                          // 「0m先」は変。登り始めていたら「登り中」
+    var len = Math.round(nc.len / 10) * 10 + 'm 平均' + Math.round(nc.avg) + '%';
+    return nc.startIn < 50 ? '登り中 ' + len : Math.round(nc.startIn / 10) * 10 + 'm先 登り ' + len;
   }
 
   /* ---- C-1: 引き返し限界 ---- */
@@ -1521,7 +1527,7 @@
       var x = stripX(t, HALF);
       var lbl = Math.round(((ht + t) % 360 + 360) % 360);
       svg += '<line x1="' + x + '" y1="244" x2="' + x + '" y2="256" stroke="#6b675c" stroke-width="2"/>';
-      svg += '<text x="' + x + '" y="278" fill="#6b675c" font-size="15" text-anchor="middle" font-family="inherit">' + lbl + '°</text>';
+      svg += '<text x="' + x + '" y="280" fill="#6b675c" font-size="18" text-anchor="middle" font-family="inherit">' + lbl + '°</text>';
     }
     var labels = '';
     for (i = 0; i < Math.min(shown.length, 6); i++) {
@@ -1613,7 +1619,7 @@
       named.push([[xx, yy], pls[i].n]);
     }
     for (i = 0; i < Math.min(named.length, 5); i++) {
-      svg += '<text x="' + named[i][0][0].toFixed(0) + '" y="' + (named[i][0][1] - 10).toFixed(0) + '" fill="currentColor" font-size="17" text-anchor="middle" font-family="inherit">' + named[i][1] + '</text>';
+      svg += '<text x="' + named[i][0][0].toFixed(0) + '" y="' + (named[i][0][1] - 10).toFixed(0) + '" fill="currentColor" font-size="18" text-anchor="middle" font-family="inherit">' + named[i][1] + '</text>';
     }
     svg += '</svg>';
     return identShell('<div class="abs" style="top:10px;color:' + (S.night ? '#b04040' : '#f5f1e6') + '">' + svg + '</div>' +
@@ -1987,15 +1993,10 @@
       svg += '<circle cx="' + mq[0] + '" cy="' + mq[1] + '" r="7" fill="#ffd83b"/>';
     }
     svg += '</svg>';
-    var diff;
-    if (S.ghostSrc === 'pace' && S.paceGoal > 0) {          // 目標ペースは等速なので通過予定時刻と直接比べる
-      var pt0 = isLoopRoute() ? (S.lapStartMs || S.startMs) : S.startMs;
-      var due = S.paceGoal * (S.along / r.total);
-      diff = S.proj ? CORE.fmtDiff((nowMs() - pt0) / 60000 - due) : '--';
-    } else {
-      var ct = CORE.ctAt(r, S.along);
-      diff = (ct != null && ct > 5) ? CORE.fmtDiff(((nowMs() - S.startMs) / 60000) - ct) : '--';
-    }
+    // ラベルのソースと同じゴーストで比べる(以前は lap1/last でも標準CT差を出していた)。
+    // 符号はこのパネルの慣例どおり「+ = 自分が遅い」
+    var gdl = ghostDeltaNow();
+    var diff = (gdl == null) ? '--' : CORE.fmtDiff(-gdl / 60);
     var gLbl = { ct: '標準CT', lap1: '1周目の自分', last: '前回の自分', pace: '目標ペース' }[S.ghostSrc] || '標準CT';
     return '<div class="abs ctr" style="top:60px">' + svg + '</div>' +
       '<div class="abs ctr" style="top:340px"><span class="eta1">' +
@@ -2117,6 +2118,9 @@
         }
       }
       if (valid < gw * gh * 0.2) { terrCache[key].fail = true; render(); return; }  // 大半が無効域
+      // 起伏が10m未満なら線を引かない。平坦地の等高線は岸壁段差と建物基壇しか描かず
+      // 意味ありげなノイズになる(A-1 で晴海の実機確認)。皇居(24m)は残り、晴海(3m)は落ちる
+      if (mx - mn < 10) { terrCache[key].flat = true; terrCache[key].fail = true; render(); return; }
       // SPEC A-2: 階層化。主曲線10m(最暗)/計曲線50m(中)/尾根線(最明)/谷線(青系)。
       // 10mが数px間隔に潰れる急斜面では主曲線を落として計曲線だけにする(密度ガード)
       var STEP_MAIN = 10, STEP_INDEX = 50;
@@ -2194,7 +2198,7 @@
       if (!drew) return null;
       cx.clearRect(0, H - 32, 190, 32);          // スケールバー
       cx.clearRect(W - 56, 0, 56, 30);           // N↑
-      cx.clearRect(W - 320, H - 22, 320, 22);    // クレジット
+      cx.clearRect(W - 400, H - 26, 400, 26);    // クレジット
       return cv.toDataURL();
     } catch (e) { return null; }
   }
@@ -2273,7 +2277,7 @@
     // スケールバーとN
     var bar = 100; while (bar * sc < 60) bar *= 2; while (bar * sc > 160) bar /= 2;
     svg += '<line x1="' + pad + '" y1="' + (H - 10) + '" x2="' + (pad + bar * sc).toFixed(0) + '" y2="' + (H - 10) + '" stroke="#6b675c" stroke-width="3"/>';
-    svg += '<text x="' + pad + '" y="' + (H - 16) + '" fill="#6b675c" font-size="16" font-family="inherit">' + (bar >= 1000 ? (bar / 1000) + 'km' : bar + 'm') + '</text>';
+    svg += '<text x="' + pad + '" y="' + (H - 16) + '" fill="#6b675c" font-size="18" font-family="inherit">' + (bar >= 1000 ? (bar / 1000) + 'km' : bar + 'm') + '</text>';
     svg += '<text x="' + (W - 34) + '" y="24" fill="#6b675c" font-size="18" font-family="inherit">N↑</text>';
     svg += '</svg>';
     var cap;
@@ -2311,7 +2315,7 @@
         credit = '地図: 地理院タイル ・ 等高線' + (terr.step === 10 ? '10/50m' : '50m') +
                  (r.vec ? ' / © OpenStreetMap contributors' : '');
       } else {
-        credit = '線図(地形未取得)';
+        credit = (terr && terr.flat) ? '' : '線図(地形未取得)';   // 平坦=「無い」のではなく「引かない」
       }
     }
     credit = credit || '';
@@ -2320,7 +2324,7 @@
       : '';
     return '<div class="abs ctr" style="top:44px"><div style="position:relative;width:' + W + 'px;height:' + H + 'px;display:inline-block">' + under +
       '<div style="position:absolute;left:0;top:0">' + svg + '</div>' +
-      (credit ? '<div style="position:absolute;right:4px;bottom:2px;font-size:14px;color:#6b675c">' + credit + '</div>' : '') +
+      (credit ? '<div style="position:absolute;right:4px;bottom:2px;font-size:18px;color:#6b675c">' + credit + '</div>' : '') +
       '</div></div>' +
       '<div class="abs ctr" style="top:396px"><span class="ct1 dim">' + cap + '</span></div>' +
       '<div class="abs ctr" style="top:428px"><span class="sub dim">' + rawCap + '</span></div>';
