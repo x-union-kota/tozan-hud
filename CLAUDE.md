@@ -11,7 +11,7 @@ Meta Ray-Ban Display(HUD+Neural Band)向けの登山/ランHUD。単一HTMLのWe
 python3 tools/build.py            # src/* → dist/index.html (単一HTML組み立て)
 node test/core.test.js            # 純ロジック 156件
 node test/app.smoke.js            # jsdom統合 149件 (要: npm install jsdom / dist を先にビルド)
-python3 test/gpx2route.test.py    # 変換ツール 125件
+python3 test/gpx2route.test.py    # 変換ツール 131件
 
 cp dist/index.html index.html && cp dist/sw.js sw.js   # 公開用コピー(GitHub Pages はリポジトリ直下を配信)
 ```
@@ -47,6 +47,7 @@ src/astro.js   天文計算(既知値と照合済み。触るなら要再照合)
 src/routes.js  src/stars.js  自動生成。手編集禁止(星表は make_stars.py --emit-fetch → --hyg/--lines)
 tools/build.py         単一HTML組み立て
 tools/gpx2route.py     実GPX→v3ルート変換(OSM/DEMのオフライン投入・--emit-query / --emit-dem-fetch)
+tools/osm_traces.py    OSM公開トレース(trackpoints API)から使える実歩行ログを選別し、標準CT式との実測倍率を出す(--emit-fetch)
 dist/index.html dist/sw.js   ビルド成果物
 ./index.html ./sw.js         dist からの公開用コピー。GitHub Pages(Public)の配信元
 ```

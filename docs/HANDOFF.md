@@ -150,7 +150,8 @@ tools/
 ├── make_field_demo.py デモ4ルート生成→routes.js(晴海・皇居=OSM道路網の経路探索+vec焼き込み / 高尾・富士=概形)
 ├── make_registry.py   デモ4ルートのレジストリ焼き込み→routes.js(手書き精選DB。実運用はgpx2route.py)
 ├── make_stars.py      星表生成→stars.js
-└── gpx2route.py       実GPX→v3ルート変換(v3.2でDEM投入口。配布物。stdlibのみ)
+├── gpx2route.py       実GPX→v3ルート変換(v3.2でDEM投入口。配布物。stdlibのみ)
+└── osm_traces.py      OSM公開トレースの選別→時刻付きGPX+標準CTとの実測倍率(引き返し限界のマージン較正用)
 test/
 ├── core.test.js       純ロジック 156件
 ├── app.smoke.js       jsdom統合 149件(sim経由の全画面フロー+v3.1回帰: 自宅導線・ラップゲート+v3.2: 目標ペース)

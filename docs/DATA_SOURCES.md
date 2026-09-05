@@ -123,6 +123,24 @@ gpx2route.py のオフライン2段構えを拡張:
 
 ---
 
+## 優先2b: 実歩行ログ(OSM公開トレース)で標準CT式を較正【ツール投入済み・データ待ち】
+
+引き返し限界時刻(C-1)の安全マージン60分は、標準式(登り300m/h+水平4km/h、下り500m/h+水平4.5km/h)が
+実態に対してどれだけ保守的/楽観的かを知らないまま置いた値。OSM の公開トレース(trackpoints API)から
+高尾山口→山頂(→山口)の実歩行ログを選別し、行動時間/標準CT の中央値を出す。
+
+```bash
+python3 tools/osm_traces.py --emit-fetch 139.235,35.615,139.280,35.640 > fetch.sh   # DLスクリプトを出す(実行は手元)
+bash fetch.sh                                                                      # osm-traces/page-*.gpx
+python3 tools/osm_traces.py osm-traces/ --start 35.6322,139.2699 --goal 35.6252,139.2436 --roundtrip --out picked/
+```
+
+- ページ分割応答を trace(`<url>`)ごとに束ね直す。非公開設定のログは点がシャッフルされて届くので、時刻が単調増加のものだけ残す
+- 始点が `--start` 近傍(既定250m: 高尾山口駅とケーブル清滝駅を覆う)で `--goal` に達したものを抽出。`--roundtrip` で往復のみ
+- 出力は表(距離・獲得・所要・停止を除いた行動時間・CT倍率)と、`gpx2route.py` にそのまま食わせられる時刻付き GPX
+- CT式の係数は `gpx2route.auto_ct` と同一なので、倍率はそのままアプリの較正値になる。ログが少なければ `--roundtrip` を外す
+- 合成データで検証済み(`test/gpx2route.test.py [osm-traces]`)。実データの結果が出たら C-1 のマージンを見直す
+
 ## 優先3: 星表 — 手動69星 → HYG Database + Stellarium星座線【v3.2 実装済み】
 
 要件「300星+88星座」を公開データで満たす。※当初案はBSC5+d3-celestialだったが、

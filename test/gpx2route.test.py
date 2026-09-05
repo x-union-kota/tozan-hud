@@ -620,6 +620,50 @@ for _rid, _fx, _lo, _hi in (('kokyo', 'kokyo-osm.json', 4850, 5150), ('harumi', 
             if c[2] not in _seen: _seen.add(c[2]); _crossing += 1
     ok(_crossing <= (20 if _rid == 'kokyo' else 6), f'{_rid}: few street crossings ({_crossing}; signals/crossings are penalised)')
 
+# ---- osm_traces.py: OSM トレースAPI応答(GPX1.0・ページ分割)から使える実歩行ログを選別 ----
+print('[osm-traces]')
+with tempfile.TemporaryDirectory() as td:
+    import random as _rnd
+    from datetime import datetime as _dt, timedelta as _tdl
+    S_, G_ = (35.6322, 139.2699), (35.6252, 139.2436)
+    def leg(a, b, e0, e1, n):
+        return [(a[0] + (b[0] - a[0]) * i / n, a[1] + (b[1] - a[1]) * i / n, e0 + (e1 - e0) * i / n) for i in range(n + 1)]
+    up = leg(S_, G_, 190, 599, 200); down = leg(G_, S_, 599, 190, 200)
+    t0 = _dt(2026, 5, 3, 0, 0, 0)
+    def timed(pts, step_s): return [(la, lo, e, t0 + _tdl(seconds=i * step_s)) for i, (la, lo, e) in enumerate(pts)]
+    A = timed(up + down[1:], 18)                    # 往復・時刻単調(採用)
+    B = timed(up, 15)                                # 片道(--roundtrip では落ちる)
+    C = list(A); _rnd.Random(3).shuffle(C)           # 非公開設定でシャッフルされたログ(落ちる)
+    D = timed(up[:60], 15)                           # 点が少なすぎる(落ちる)
+    def trk(url, name, pts):
+        body = ''.join(f'<trkpt lat="{la:.6f}" lon="{lo:.6f}"><ele>{e:.0f}</ele><time>{tm.strftime("%Y-%m-%dT%H:%M:%SZ")}</time></trkpt>' for la, lo, e, tm in pts)
+        return f'<trk><name>{name}</name><desc>d</desc><url>{url}</url><trkseg>{body}</trkseg></trk>'
+    head = '<?xml version="1.0" encoding="UTF-8"?><gpx version="1.0" xmlns="http://www.topografix.com/GPX/1/0">'
+    # トレースAはページ1と2にまたがる
+    open(os.path.join(td, 'page-1.gpx'), 'w').write(head + trk('u/1', 'A', A[:250]) + trk('u/3', 'C', C) + '</gpx>')
+    open(os.path.join(td, 'page-2.gpx'), 'w').write(head + trk('u/1', 'A', A[250:]) + trk('u/2', 'B', B) + trk('u/4', 'D', D) + '</gpx>')
+    tool = os.path.join(TOOLS, 'osm_traces.py')
+    def runt(extra):
+        return subprocess.run([sys.executable, tool, td, '--start', f'{S_[0]},{S_[1]}', '--goal', f'{G_[0]},{G_[1]}',
+                               '--out', os.path.join(td, 'picked')] + extra, capture_output=True, text=True)
+    r = runt(['--roundtrip'])
+    ok(r.returncode == 0 and 'traces 4 / 時刻付き単調 2 / 条件一致 1' in r.stdout,
+       'pages re-joined per trace; shuffled & short traces dropped; roundtrip keeps 1 (' + r.stdout.strip().split('\n')[0] + ')')
+    ok('倍率: 中央値' in r.stdout, 'CT ratio reported')
+    _m = _re_ct = None
+    import re as _re2
+    _m = _re2.search(r'中央値 ([\d.]+)', r.stdout)
+    # 合成ログ: 往復 5.0km/+409m を 2.0h → 標準CT(登り 37+82=119分, 下り 33+49=82分 = 201分) に対し 0.59倍
+    ok(_m and 0.5 < float(_m.group(1)) < 0.7, f'synthetic walker is ~0.6× the standard CT ({_m.group(1) if _m else "?"})')
+    r2 = runt([])
+    ok('条件一致 2' in r2.stdout, 'without --roundtrip the one-way trace is kept too')
+    # 出力GPXは gpx2route.py にそのまま食わせられる
+    gp = os.path.join(td, 'picked', 'trace_00.gpx'); dj = os.path.join(td, 't.json')
+    r3 = run([gp, '--id', 'tr', '--name', 'trace', '--dump-json', dj])
+    ok(r3.returncode == 0 and 4800 < json.load(open(dj, encoding='utf-8'))['dist'] < 5200, 'picked GPX (5.0km round trip) converts with gpx2route.py')
+    r4 = subprocess.run([sys.executable, tool, '--emit-fetch', '139.235,35.615,139.280,35.640'], capture_output=True, text=True)
+    ok(r4.returncode == 0 and 'trackpoints?bbox=139.235,35.615,139.280,35.640' in r4.stdout, '--emit-fetch prints the trackpoints API loop')
+
 # ---- その場モード: app.js の FAMOUS は gpx2route.py の FAMOUS と同一であること ----
 print('[famous sync]')
 import re as _re
