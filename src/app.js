@@ -38,6 +38,7 @@
     heading: null, headingReal: 0, headingSettled: false, hmode: (lsGet('thud.hmode') || 'alpha'),
     pitch: null, pitchReal: 0,   // 仰角(0=水平, +=見上げ)。空レイヤの高度帯がこれに追従する
     posHist: [], identLock: null,   // C-4: 直近の生GPS / C-6: 注視ロック中の対象
+    alongHist: [],                  // C-8: [ms, along] 直近70秒(実効速度=Δalong/Δt)
     sun: null, sunNotice: false,
     wx: null, wxTriedMs: 0,
     track: [], lastTrackMs: 0,
@@ -300,9 +301,10 @@
   window.addEventListener('popstate', function (e) {
     var target = (e.state && e.state.s) || 'select';
     var from = S.mode;
-    if ((from === 'ident' || from === 'cere') && target === 'main') {
-      setNight(false); S.mode = 'main'; render(); return;
+    if ((from === 'ident' || from === 'cere' || from === 'detail') && target === 'main') {
+      setNight(false); S.identLock = null; S.mode = 'main'; render(); return;
     }
+    if (target === 'detail') { setNight(false); S.identLock = null; S.mode = 'detail'; render(); return; }  // 透視→詳細へ戻る
     if (from === 'warn' && (target === 'ident')) { S.mode = 'ident'; render(); return; }
     if (from === 'warn' && target === 'main') {
       // 手動クローズ(戻る)で逸脱継続中 → 60秒は再警告しない
@@ -417,6 +419,8 @@
     S.lastGoodFixReal = Date.now();
     S.cursor = m.seg; S.proj = m;
     S.along = m.along;
+    S.alongHist.push([Date.now(), m.along]);                 // C-8: 実効速度用
+    while (S.alongHist.length && Date.now() - S.alongHist[0][0] > 70000) S.alongHist.shift();
     if (!S.midJoinChecked) {                             // 初回射影がルート中腹なら明示する
       S.midJoinChecked = true;
       if (m.along > 300 && m.dist < 200) wpFlash('途中から合流 (' + CORE.fmtKm(m.along) + '地点)');
@@ -821,9 +825,20 @@
       if (k === 'ArrowLeft')  { S.panel = (S.panel + 4) % 5; if (S.panel === 4 && !S.wx) fetchWeather(); render(); }
       if (k === 'ArrowRight') { S.panel = (S.panel + 1) % 5; if (S.panel === 4 && !S.wx) fetchWeather(); render(); }
       if (k === 'ArrowUp')    { enterIdent(); }         // v2改定: ↑=同定モード(全パネル共通)
-      if (k === 'ArrowDown')  { S.theme = (S.theme === 'w') ? 'y' : 'w'; applyTheme(); }
+      if (k === 'ArrowDown')  { pushScreen('detail'); S.mode = 'detail'; render(); }   // C-7/C-8 の詳細ページ
       if (k === 'Enter' && S.panel === 3) manualWp();   // WP確認は次WPパネル表示中のみ
       if (k === 'Escape') goBack();                       // → 終了(popstateでdoneへ)
+      return;
+    }
+    if (S.mode === 'detail') {
+      if (k === 'ArrowLeft' || k === 'ArrowRight') {            // C-1 の引き返しマージン 30/60/90
+        var opts = [30, 60, 90], ci = Math.max(0, opts.indexOf(S.tbMargin));
+        S.tbMargin = opts[(ci + (k === 'ArrowRight' ? 1 : 2)) % 3];
+        lsSet('thud.tbMargin', S.tbMargin); render(); return;
+      }
+      if (k === 'Enter') { S.theme = (S.theme === 'w') ? 'y' : 'w'; applyTheme(); render(); return; }
+      if (k === 'ArrowUp') { enterIdent(); return; }
+      if (k === 'ArrowDown' || k === 'Escape') { goBack(); return; }
       return;
     }
     if (S.mode === 'ident') {
@@ -1147,6 +1162,55 @@
     return '<div id="tape" class="abs" style="top:0;height:' + H + 'px;line-height:0">' + svg + '</div>';
   }
 
+  /* ---- C-7/C-8: ↓詳細ページ(勾配ラダー・次の登り・実効速度・設定) ---- */
+  function climbAhead() {
+    if (!S.proj || !S.route || S.route.domain === 'urban') return null;
+    if (staleInfo().sec > 600) return null;
+    return CORE.nextClimb(S.route, S.along, 8, 100);
+  }
+  function vmgNow() {
+    if (!S.proj || staleInfo().sec > 90 || offRouteNow()) return null;
+    return CORE.vmg(S.alongHist, Date.now(), 60);
+  }
+  function vmgText() {
+    var v = vmgNow();
+    if (v == null || v <= 0.05) return '—';
+    if (S.route.domain === 'urban') {
+      var spk = 1000 / v, mm = Math.floor(spk / 60), ss = Math.round(spk % 60);
+      return mm + ':' + (ss < 10 ? '0' : '') + ss + '/km';
+    }
+    return Math.round(v * 60) + 'm/分';
+  }
+  function scrDetail() {
+    var urban = S.route && S.route.domain === 'urban';
+    var g = (S.proj && !urban && staleInfo().sec <= 600) ? CORE.gradeAt(S.route, S.along, 50) : null;
+    var gTxt = g == null ? '—' : ((g >= 0 ? '↗ ' : '↘ ') + Math.abs(Math.round(g)) + '%');
+    var nc = climbAhead();
+    var ncTxt = urban ? '' : (nc
+      ? Math.round(nc.startIn / 10) * 10 + 'm先 登り ' + Math.round(nc.len / 10) * 10 + 'm 平均' + Math.round(nc.avg) + '%'
+      : 'この先 8%超の登りなし');
+    var margin = urban ? '' :
+      '<div class="stat-row">引き返しマージン <span class="dim">◂ </span><span class="main-c">' + S.tbMargin + '分</span><span class="dim"> ▸</span></div>';
+    return headingTape() +
+      '<div class="abs ctr" style="top:70px"><span class="sub dim">詳細</span></div>' +
+      '<div class="abs ctr" style="top:100px"><div class="big2 main-c">' + gTxt + '</div>' +
+      '<div class="sub dim">現在勾配(直近50m)</div></div>' +
+      (ncTxt ? '<div class="abs ctr" style="top:190px"><span class="ct1 ' + (nc ? 'acc2' : 'dim') + '">' + esc(ncTxt) + '</span></div>' : '') +
+      '<div class="abs ctr" style="top:240px"><span class="eta1">実効 ' + vmgText() + '</span>' +
+      '<div class="sub dim">沿道距離ベース・直近60秒(後戻り・停止は —)</div></div>' +
+      '<div class="abs" style="top:330px;padding:0 90px"><div class="frame">' + margin +
+      '<div class="stat-row">表示色 <span class="main-c">' + (S.theme === 'w' ? '白(低輝度)' : '黄(高輝度)') + '</span> <span class="dim">ピンチで切替</span></div>' +
+      '</div></div>' +
+      '<div class="abs ctr" style="bottom:56px"><span class="sub dim">' + (urban ? '' : '←→ マージン ／ ') + '↑ 透視 ／ ↓ 戻る</span></div>';
+  }
+  var bandRotMs = 0;
+  function climbBandText() {                        // C-7: メインでは帯ローテーションに1件(10秒周期の前半)
+    var nc = climbAhead();
+    if (!nc || nc.startIn > 300) return null;
+    if (Math.floor(Date.now() / 5000) % 2 !== 0) return null;
+    return { c: 'main-c', s: Math.round(nc.startIn / 10) * 10 + 'm先 登り' + Math.round(nc.len / 10) * 10 + 'm 平均' + Math.round(nc.avg) + '%' };
+  }
+
   /* ---- C-1: 引き返し限界 ---- */
   function turnaround() {
     // 正直さゲート: 現在地未収束・日没未取得・urbanは出さない
@@ -1265,6 +1329,8 @@
       return { c: 'acc2', s: '逸脱警告を抑制中 残' + Math.floor(r / 60) + ':' + ('0' + (r % 60)).slice(-2) };
     }
     if (S.wpFlashUntil > t) return { c: 'main-c', s: S.wpFlashMsg };
+    var cb = climbBandText();
+    if (cb && S.mode === 'main') return cb;
     if (S.ghostBehind != null && S.mode === 'main') return { c: 'dim', s: 'ゴースト後方 ' + S.ghostBehind + 'm', ghost: true };
     if (S.lastFix && S.lastFix.acc != null) return { c: 'dim', s: '±' + Math.round(S.lastFix.acc) + 'm' + (SIM ? simBadge() : '') };
     return { c: 'dim', s: SIM ? simBadge() : '' };
@@ -1840,6 +1906,7 @@
     im.src = demUrl(src, z, x, y);
   }
   var GRID = 2;   // 標高グリッドの画面上の刻み(px)。等高線の滑らかさと計算量のバランス
+  var RIDGE_ON = false;   // 尾根線/谷線は抽出が安定するまで描かない(A-2 次段)
   function buildTerrain(key, geo, W, H) {   // geo: {unpx(x,y)→[lo,la], minLa..} 相当のマッパ
     if (terrCache[key]) return;
     terrCache[key] = { url: null, fail: false, step: null };
@@ -1891,20 +1958,23 @@
         }
       }
       if (valid < gw * gh * 0.2) { terrCache[key].fail = true; render(); return; }  // 大半が無効域
-      // 間隔は画面上の線の混み具合で決める(急斜面で数px間隔に潰れると白い塊になる)
-      var step = CORE.contourStep(Math.max(mx - mn, 0.5), CORE.gradPercentile(grid, gw, gh, GRID, 0.6), 10);
+      // SPEC A-2: 階層化。主曲線10m(最暗)/計曲線50m(中)/尾根線(最明)/谷線(青系)。
+      // 10mが数px間隔に潰れる急斜面では主曲線を落として計曲線だけにする(密度ガード)
+      var STEP_MAIN = 10, STEP_INDEX = 50;
+      var g60 = CORE.gradPercentile(grid, gw, gh, GRID, 0.6);
+      var drawMain = !g60 || (STEP_MAIN / g60) >= 4;
       var cv = document.createElement('canvas'); cv.width = W; cv.height = H;
       var cx = cv.getContext('2d');
       if (!cx) { terrCache[key].fail = true; render(); return; }
       cx.lineCap = 'round';
-      var k0 = Math.ceil(mn / step), k1 = Math.floor(mx / step), drew = 0;
+      var k0 = Math.ceil(mn / STEP_MAIN), k1 = Math.floor(mx / STEP_MAIN), drew = 0;
       for (var k = k0; k <= k1; k++) {
-        var segs = CORE.marchingSquares(grid, gw, gh, k * step);
+        var lv = k * STEP_MAIN, isIndex = (lv % STEP_INDEX === 0);
+        if (!isIndex && !drawMain) continue;
+        var segs = CORE.marchingSquares(grid, gw, gh, lv);
         if (!segs.length) continue;
-        // 5本ごとの主曲線は「太さ」で区別する。地図全体を非活性色1色に抑え、
-        // 明るい色はルート(#ffd83b)と現在地に取っておく(地図が主役を食わないように)
-        cx.strokeStyle = '#6b675c';
-        cx.lineWidth = (k % 5 === 0) ? 2.5 : 1;
+        cx.strokeStyle = isIndex ? '#6b675c' : '#33302b';
+        cx.lineWidth = isIndex ? 2 : 1;
         cx.beginPath();
         for (var i = 0; i < segs.length; i += 4) {
           cx.moveTo(segs[i] * GRID, segs[i + 1] * GRID);
@@ -1912,11 +1982,20 @@
         }
         cx.stroke(); drew++;
       }
-      // 上に載るHUD要素の下は消す。加算ディスプレイでは黒=無発光なので、
-      // ここを空けるのが「文字と線を混ぜない」唯一正しいやり方(縁取りは光量を増やすだけ)
-      cx.clearRect(0, H - 32, 190, 32);          // スケールバー
-      cx.clearRect(W - 56, 0, 56, 30);           // N↑
-      cx.clearRect(W - 320, H - 22, 320, 22);    // クレジット
+      // 尾根線(最明)と谷線(青系)。高尾山の実タイルで画素を数えたところ尾根線は52px しか
+      // 立たず(谷線441px)、稜線の背は1セル差が小さすぎて閾値で拾えない = 抽出が不安定。
+      // SPEC A-2 の逃げ道どおり、まず計曲線+主曲線だけで出す。関数とテストは残してある
+      if (RIDGE_ON) {
+        var rv = CORE.ridgeValley(grid, gw, gh, 0.8 * (g60 || 0.5) * GRID);
+        cx.lineWidth = 1.5;
+        cx.strokeStyle = '#2e4650'; cx.beginPath();
+        for (i = 0; i < rv.v.length; i += 4) { cx.moveTo(rv.v[i] * GRID, rv.v[i + 1] * GRID); cx.lineTo(rv.v[i + 2] * GRID, rv.v[i + 3] * GRID); }
+        cx.stroke();
+        cx.strokeStyle = '#c9c4b6'; cx.beginPath();
+        for (i = 0; i < rv.r.length; i += 4) { cx.moveTo(rv.r[i] * GRID, rv.r[i + 1] * GRID); cx.lineTo(rv.r[i + 2] * GRID, rv.r[i + 3] * GRID); }
+        cx.stroke();
+      }
+      var step = drawMain ? STEP_MAIN : STEP_INDEX;
       terrCache[key].step = drew ? step : null;
       terrCache[key].url = drew ? cv.toDataURL() : null;
       terrCache[key].fail = !drew;                       // 平坦すぎて線が出ない場合も線図に縮退
@@ -2053,7 +2132,7 @@
       var terr = terrCache[tKey];
       if (terr && terr.url) {
         under = terr.url;
-        credit = '地図: 地理院タイル ・ 等高線' + terr.step + 'm' +
+        credit = '地図: 地理院タイル ・ 等高線' + (terr.step === 10 ? '10/50m' : '50m') +
                  (r.vec ? ' / © OpenStreetMap contributors' : '');
       } else {
         credit = '線図(地形未取得)';
@@ -2127,6 +2206,7 @@
     else if (S.mode === 'ready')  html = scrReady();
     else if (S.mode === 'main')   html = scrMain();
     else if (S.mode === 'ident')  html = (S.identLayer === 'sky') ? scrIdentSky() : scrIdentGround();
+    else if (S.mode === 'detail') html = scrDetail();
     else if (S.mode === 'cere')   html = scrCeremony();
     else if (S.mode === 'warn')   html = scrWarn();
     else if (S.mode === 'done')   html = scrDone();

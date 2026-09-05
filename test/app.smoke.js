@@ -87,11 +87,27 @@ const sleep = (ms) => new Promise(r => setTimeout(r, ms));
     key('ArrowLeft'); key('ArrowLeft'); key('ArrowLeft'); // 3→2→1→0
   }
 
-  // ↓でテーマトグル(v3: ↑は同定モード)
-  const cls0 = window.document.body.className;
-  key('ArrowDown');
-  ok(window.document.body.className !== cls0, '↓ → テーマ切替');
-  key('ArrowDown');   // 元に戻す
+  // SPEC C-7/C-8: ↓ は詳細ページ。テーマ切替はその中のピンチに移った
+  {
+    const cls0 = window.document.body.className;
+    const dom0 = T().S.route.domain;
+    T().S.route.domain = 'mountain';          // この時点の周回ルートは urban。マージンは mountain 限定
+    key('ArrowDown');
+    ok(T().S.mode === 'detail', '↓ → 詳細ページ');
+    ok(/現在勾配/.test(text()) && /実効/.test(text()), 'detail shows grade and effective speed');
+    ok(/引き返しマージン/.test(text()), 'detail hosts the turnaround-margin setting');
+    T().S.route.domain = 'urban'; T().render();
+    ok(!/引き返しマージン/.test(text()) && !/登り/.test(text()), 'urban hides margin and climb notice (they mean little in town)');
+    T().S.route.domain = dom0; T().render();
+    const m0 = T().S.tbMargin; key('ArrowRight');
+    ok(T().S.tbMargin !== m0 && [30, 60, 90].includes(T().S.tbMargin), '←→ cycles the margin through 30/60/90');
+    key('ArrowLeft');
+    key('Enter');
+    ok(window.document.body.className !== cls0, 'pinch on the detail page toggles the theme');
+    key('Enter');   // 元に戻す
+    key('ArrowDown'); await sleep(300);
+    ok(T().S.mode === 'main', '↓ again returns to main');
+  }
 
   // 逸脱注入 → warn 遷移
   key('d');

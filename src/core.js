@@ -166,6 +166,76 @@ var CORE = (function () {
     return d * Math.sin(rel * D2R);
   }
 
+  /* ---------- 勾配と次の登り(SPEC C-7) ---------- */
+  // 直近 win(m) の標高差から現在勾配(%)
+  function gradeAt(route, along, win) {
+    win = win || 50;
+    var a = Math.max(0, along - win), b = Math.min(route.total, along);
+    if (b - a < 10) return null;
+    return (elevAt(route, b) - elevAt(route, a)) / (b - a) * 100;
+  }
+  // この先で「勾配 minGrade% 以上が minLen m 以上続く区間」の最初のもの
+  // → {startIn: 何m先, len: 区間長, avg: 平均勾配%, gain: 登り高} / 無ければ null
+  function nextClimb(route, along, minGrade, minLen, step) {
+    if (!route || along == null) return null;
+    minGrade = minGrade || 8; minLen = minLen || 100; step = step || 25;
+    var s = along, inRun = false, runStart = 0, runGain = 0, prevE = elevAt(route, along);
+    for (s = along + step; s <= route.total; s += step) {
+      var e = elevAt(route, s), g = (e - prevE) / step * 100;
+      if (g >= minGrade) {
+        if (!inRun) { inRun = true; runStart = s - step; runGain = 0; }
+        runGain += (e - prevE);
+      } else if (inRun) {
+        var len = (s - step) - runStart;
+        if (len >= minLen) return { startIn: runStart - along, len: len, avg: runGain / len * 100, gain: runGain };
+        inRun = false;
+      }
+      prevE = e;
+    }
+    if (inRun) {
+      var len2 = (s - step) - runStart;
+      if (len2 >= minLen) return { startIn: runStart - along, len: len2, avg: runGain / len2 * 100, gain: runGain };
+    }
+    return null;
+  }
+
+  /* ---------- 実効速度 VMG(SPEC C-8) ---------- */
+  // hist: [[ms, along], ...]。直近 winSec 秒の Δalong/Δt (m/s)。後戻り・停止は 0 以下になる
+  function vmg(hist, nowMs, winSec) {
+    winSec = winSec || 60;
+    if (!hist || hist.length < 2) return null;
+    var oldest = null;
+    for (var i = 0; i < hist.length; i++) { if (nowMs - hist[i][0] <= winSec * 1000) { oldest = hist[i]; break; } }
+    var newest = hist[hist.length - 1];
+    if (!oldest || oldest === newest) return null;
+    var dt = (newest[0] - oldest[0]) / 1000;
+    if (dt < 10) return null;
+    return (newest[1] - oldest[1]) / dt;
+  }
+
+  /* ---------- 尾根線・谷線(SPEC A-2) ----------
+     各セルで、横方向または縦方向に「両隣より prom 以上高い」なら尾根の背、低いなら谷底。
+     検出セルを、その直交方向(=稜線の走る向き)へ隣のセルまで短い線分で結ぶ。
+     隣接する検出が繋がって線になる。返り値は [x0,y0,x1,y1,...] のフラット配列。 */
+  function ridgeValley(grid, w, h, prom) {
+    var r = [], v = [];
+    function at(x, y) { return grid[y * w + x]; }
+    for (var y = 1; y + 1 < h; y++) {
+      for (var x = 1; x + 1 < w; x++) {
+        var c = at(x, y);
+        if (c == null) continue;
+        var l = at(x - 1, y), rt = at(x + 1, y), u = at(x, y - 1), d = at(x, y + 1);
+        if (l == null || rt == null || u == null || d == null) continue;
+        // 横断面で背: 稜線は縦に走る → 縦の隣へ結ぶ
+        if (c - l >= prom && c - rt >= prom) r.push(x, y, x, y + 1);
+        if (c - u >= prom && c - d >= prom) r.push(x, y, x + 1, y);
+        if (l - c >= prom && rt - c >= prom) v.push(x, y, x, y + 1);
+        if (u - c >= prom && d - c >= prom) v.push(x, y, x + 1, y);
+      }
+    }
+    return { r: r, v: v };
+  }
+
   /* ---------- 星表(stars.js の圧縮形式)を展開する ----------
      s: ラベル用 [名前, RA時, Dec度, 等級] / v: 線の頂点専用 [RA時, Dec度, 等級]
      c: {略号: {n: 和名, l: [[i,j], ...]}} — 添字は s.concat(v) の連結空間。
@@ -563,10 +633,11 @@ var CORE = (function () {
   return {
     decodePoly: decodePoly, decodeEle: decodeEle,
     ctBetween: ctBetween, returnCT: returnCT, turnaroundLimit: turnaroundLimit,
+    gradeAt: gradeAt, nextClimb: nextClimb, vmg: vmg,
     ghostTimeAt: ghostTimeAt, ghostDelta: ghostDelta, signedCrossTrack: signedCrossTrack,
     buildStars: buildStars,
     demElev: demElev, contourStep: contourStep, gradPercentile: gradPercentile,
-    marchingSquares: marchingSquares,
+    marchingSquares: marchingSquares, ridgeValley: ridgeValley,
     hav: hav, bearing: bearing, destPoint: destPoint,
     buildRoute: buildRoute,
     projectRange: projectRange, matchLocal: matchLocal,

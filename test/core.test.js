@@ -506,5 +506,61 @@ console.log('[cross track]');
   near(CORE.signedCrossTrack(T, mid, p.la, p.lo), 0, 1, 'on the line reads zero');
 }
 
+/* 16. 尾根線・谷線の抽出(SPEC A-2。描画は次段だが関数は検証しておく) */
+console.log('[ridge]');
+{
+  // 東西に走る稜線: y=3 が背(標高10)、両側へ下がる
+  const w = 7, h = 7, g = [];
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) g[y * w + x] = 10 - Math.abs(y - 3) * 2;
+  const rv = CORE.ridgeValley(g, w, h, 1.0);
+  const ridgeRows = new Set(); for (let i = 0; i < rv.r.length; i += 4) ridgeRows.add(rv.r[i + 1]);
+  ok(rv.r.length > 0 && ridgeRows.size === 1 && ridgeRows.has(3), 'a straight ridge is found on its crest row only');
+  ok(rv.v.length === 0, 'no valley is invented on a pure ridge');
+  // 反転すれば谷
+  const gv = g.map(v => 20 - v);
+  const rv2 = CORE.ridgeValley(gv, w, h, 1.0);
+  const valRows = new Set(); for (let i = 0; i < rv2.v.length; i += 4) valRows.add(rv2.v[i + 1]);
+  ok(rv2.v.length > 0 && valRows.size === 1 && valRows.has(3), 'the mirrored grid reads as a valley');
+  // 平坦なら何も出ない / 無効セルは触らない
+  ok(CORE.ridgeValley(new Array(w * h).fill(5), w, h, 1.0).r.length === 0, 'flat ground has no ridges');
+  const gn = g.slice(); gn[3 * w + 3] = null;
+  const rv3 = CORE.ridgeValley(gn, w, h, 1.0);
+  ok(!rv3.r.some((_, i) => i % 4 === 0 && rv3.r[i] === 3 && rv3.r[i + 1] === 3), 'an invalid cell is skipped, not guessed');
+}
+
+/* 17. 勾配ラダー・次の登り(SPEC C-7) / 実効速度(SPEC C-8) */
+console.log('[climb / vmg]');
+{
+  const T = built.find(r => r.id === 'takao');
+  // 高尾山の合成プロファイルは登り一辺倒: 往路は正、復路は負
+  const gUp = CORE.gradeAt(T, T.total * 0.25), gDown = CORE.gradeAt(T, T.total * 0.75);
+  ok(gUp > 0, `grade on the way up is positive (${gUp.toFixed(1)}%)`);
+  ok(gDown < 0, `grade on the way down is negative (${gDown.toFixed(1)}%)`);
+  ok(CORE.gradeAt(T, 3) === null, 'no window, no grade');
+
+  // 次の登り: 起点から見て金比羅台の登り(seg 444〜1221m)が最初に来るはず
+  const nc = CORE.nextClimb(T, 0, 8, 100);
+  ok(nc != null, 'a climb is found ahead of the trailhead');
+  ok(nc && nc.startIn >= 0 && nc.startIn < 1300, `it starts within the first stretch (${nc && Math.round(nc.startIn)}m ahead)`);
+  ok(nc && nc.len >= 100 && nc.avg >= 8, `it is long and steep enough (${nc && Math.round(nc.len)}m @ ${nc && nc.avg.toFixed(1)}%)`);
+  // 予告距離は進むほど縮む
+  const nc2 = CORE.nextClimb(T, 200, 8, 100);
+  ok(nc2 && nc2.startIn < nc.startIn, 'moving forward shortens the distance to the climb');
+  // 下りきった後(復路の終盤)には登りは無い
+  ok(CORE.nextClimb(T, T.total - 50, 8, 100) === null, 'no climb is invented near the end');
+  // 平坦なルート(晴海)は8%の登りが無い
+  const H = built.find(r => r.id === 'harumi');
+  ok(CORE.nextClimb(H, 0, 8, 100) === null, 'a flat urban loop has no climb to announce');
+
+  // VMG: 沿道距離ベース。九十九折りでも横切りでも Δalong/Δt
+  const t0 = 1000000;
+  const hist = []; for (let i = 0; i <= 60; i += 5) hist.push([t0 + i * 1000, i * 1.5]);   // 1.5 m/s
+  near(CORE.vmg(hist, t0 + 60000, 60), 1.5, 1e-9, 'steady progress reads its along-track speed');
+  const back = [[t0, 100], [t0 + 30000, 60]];
+  ok(CORE.vmg(back, t0 + 30000, 60) < 0, 'backtracking reads negative (shown as —)');
+  ok(CORE.vmg([[t0, 0]], t0 + 30000, 60) === null, 'one sample is not a speed');
+  ok(CORE.vmg([[t0, 0], [t0 + 3000, 5]], t0 + 3000, 60) === null, 'too short a window is not a speed');
+}
+
 console.log(`\n${count - fail}/${count} passed`);
 process.exit(fail ? 1 : 0);
