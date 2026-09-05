@@ -51,7 +51,7 @@ self.addEventListener('fetch', function (e) {
   if (url.hostname === 'cyberjapandata.gsi.go.jp') { e.respondWith(tileCacheFirst(e.request)); return; }
   if (url.hostname.indexOf('open-meteo') >= 0) return;
   var isShell = e.request.mode === 'navigate' || url.pathname.slice(-1) === '/' ||
-                url.pathname.slice(-10) === 'index.html' || url.pathname.slice(-9) === 'spike.html';
+                url.pathname.slice(-10) === 'index.html';
   if (isShell) { e.respondWith(networkFirst(e.request)); return; }
   e.respondWith(caches.match(e.request).then(function (h) { return h || fetch(e.request); }));
 });

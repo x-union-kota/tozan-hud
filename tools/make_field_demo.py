@@ -80,7 +80,9 @@ def finish(rid, name, pts, wp_defs, closed, piston, extra=None):
     if piston:  # 復路側のWPをミラーで追加(山頂以外)
         wps += [{'d': round(total - w['d']), 'n': w['n'], 't': w['t']}
                 for w in wps if 0 < w['d'] < total * 0.49]
-    wps.append({'d': round(total), 'n': wp_defs[-1][2] if not (piston or closed) else '下山口', 't': 'goal'})
+    # 周回のゴール名は core.rotateLoop と同じ「ゴール (起点名)」。都市の周回に「下山口」は出さない
+    goal_n = wp_defs[-1][2] if not (piston or closed) else ('下山口' if piston else 'ゴール (' + wp_defs[0][2] + ')')
+    wps.append({'d': round(total), 'n': goal_n, 't': 'goal'})
     wps = sorted({w['d']: w for w in wps}.values(), key=lambda w: w['d'])
     obj = {'id': rid, 'name': name, 'dist': round(total), 'gain': round(gain),
            'poly': enc_poly(pts), 'ele': enc_ele(pts), 'wps': wps,

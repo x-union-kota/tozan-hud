@@ -532,6 +532,19 @@ with tempfile.TemporaryDirectory() as td:
         rxy = [G._xy(p, LA0) for p in ring2]
         okc = sum(rxy[i - 1][0] * rxy[i][1] - rxy[i][0] * rxy[i - 1][1] for i in range(len(rxy))) > 0
     ok(okc, 'orient_loop closes the ring and makes it counter-clockwise')
+    # CLI: --route-osm(概形をDP40mで角だけに間引いて経由点に)と --ring-around
+    cg = os.path.join(td, 'circ.gpx')
+    open(cg, 'w', encoding='utf-8').write('<?xml version="1.0"?><gpx version="1.1"><trk><trkseg>' +
+        ''.join(f'<trkpt lat="{la:.6f}" lon="{lo:.6f}"><ele>5</ele></trkpt>' for la, lo, _e in circ) +
+        '</trkseg></trk></gpx>')
+    dj = os.path.join(td, 'r.json')
+    r = run([cg, '--id', 'g', '--name', 'grid', '--osm', osm, '--route-osm', '--dump-json', dj])
+    ok(r.returncode == 0 and 'route-osm:' in r.stderr, 'CLI --route-osm runs (stderr: ' + r.stderr.strip().split('\n')[0][:60] + ')')
+    jd = json.load(open(dj, encoding='utf-8')) if r.returncode == 0 else {}
+    ok(1600 < jd.get('dist', 0) < 2600, f'CLI --route-osm: loop on the grid ({jd.get("dist", 0)}m)')
+    r = run([cg, '--id', 'g', '--name', 'grid', '--osm', osm, '--ring-around', f'{LA0 + 50.0 / KY:.6f},{LO0 + 50.0 / KX:.6f}', '--dump-json', dj])
+    jd = json.load(open(dj, encoding='utf-8')) if r.returncode == 0 else {}
+    ok(r.returncode == 0 and abs(jd.get('dist', 0) - 800) < 8, f'CLI --ring-around: one grid cell ({jd.get("dist", 0)}m)')
     # ラン重み表: 通行禁止・歩道の無い trunk・駐車場通路は使わない / 歩道タグ付き車道は受け皿
     ok(G.run_weight('footway', {'foot': 'no'}, G.STREET_W) is None, 'foot=no is excluded')
     ok(G.run_weight('service', {'access': 'private'}, G.STREET_W) is None, 'access=private is excluded')

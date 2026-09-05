@@ -792,20 +792,6 @@ def build_road_graph(ways, domain='urban', guide=None, corridor=40.0, weights=No
                          for k, (u, v) in enumerate(EDGE_LIST)])
     return nodes, adj, lat0, edge_idx
 
-def nearest_node(nodes, la, lo, r):
-    best, bi = r, None
-    for i, (a, b) in enumerate(nodes):
-        if abs(a - la) * 110540.0 > r or abs(b - lo) * 111320.0 * 0.8 > r: continue
-        d = hav((a, b), (la, lo))
-        if d < best: best, bi = d, i
-    return bi, best
-
-def attach_point(nodes, adj, lat0, edge_idx, la, lo, r):
-    """点を最寄りの**辺**へ射影し、その射影点を新ノードとして辺を分割して繋ぐ → ノード番号 / None。
-       最寄り「ノード」に寄せると、交差点や公園の小道のノードが拾われて脇道へ往復する
-       スパイクが立つ(皇居で実測: 5.0km の概形が 8.6km に)。辺への射影ならそれが起きない"""
-    return [x[0] for x in attach_points(nodes, adj, lat0, edge_idx, la, lo, r, 1)] or [None]
-
 def attach_points(nodes, adj, lat0, edge_idx, la, lo, r, k, allowed=None):
     """最寄り k 本の辺それぞれへ射影点を新ノードとして挿す → [(ノード番号, 射影距離), ...]
        allowed を渡すと、その種別の辺だけを候補にする(経由点を公園の小道に落とさない)"""
@@ -959,7 +945,7 @@ def route_on_graph(pts, ways, domain='urban', via_step=250.0, snap_r=300.0, K=4,
         out[i] = (out[i][0], out[i][1], be)
     return out, {'via': len(vias), 'ok': ok, 'skipped': skipped, 'nodes': len(nodes)}
 
-def enclosing_loop(ways, center, domain='urban', r_min=200.0, r_max=1500.0, prefer=('sidewalk', 'pedestrian'), streets=True):
+def enclosing_loop(ways, center, domain='urban', r_min=50.0, r_max=1500.0, prefer=('sidewalk', 'pedestrian'), streets=True):
     """center を囲む最短の閉路を道路グラフから求める(「大通りを一周」を角の指定無しで作る)。
        中心から真東への半直線を跨ぐ辺を全部外し、跨ぐ辺ごとに両端を結ぶ最短路+その辺=中心を一周する閉路。
        prefer の種別で最も内側の辺の閉路を返す。皇居で実測: 内側の歩道(半径714m)の閉路 5063m = 公式約5.0km。
@@ -982,14 +968,16 @@ def enclosing_loop(ways, center, domain='urban', r_min=200.0, r_max=1500.0, pref
     cutset = set(cut) | set((v, u) for (u, v) in cut)
     adj2 = {u: [(v, c, l) for (v, c, l) in es if (u, v) not in cutset] for u, es in adj.items()}
     tried = 0
-    for (u, v), (r, k) in sorted(cut.items(), key=lambda kv: kv[1][0]):
-        if EDGE_SUB[k] not in prefer: continue
-        tried += 1
-        path = dijkstra(adj2, u, v)
-        if not path: continue
-        pts = [(nodes[i][0], nodes[i][1], 0.0) for i in path]
-        pts.append(pts[0])
-        return pts, {'radius': r, 'len': cumdist(pts)[-1], 'sub': EDGE_SUB[k], 'tried': tried}
+    # prefer の種別(歩道)で最も内側の閉路 → 無ければ歩ける道なら何でも(住宅街路だけの街区など)
+    for pass_prefer in (prefer, None):
+        for (u, v), (r, k) in sorted(cut.items(), key=lambda kv: kv[1][0]):
+            if pass_prefer and EDGE_SUB[k] not in pass_prefer: continue
+            tried += 1
+            path = dijkstra(adj2, u, v)
+            if not path: continue
+            pts = [(nodes[i][0], nodes[i][1], 0.0) for i in path]
+            pts.append(pts[0])
+            return pts, {'radius': r, 'len': cumdist(pts)[-1], 'sub': EDGE_SUB[k], 'tried': tried}
     return None, {'tried': tried}
 
 def orient_loop(pts, start, ccw=True):
