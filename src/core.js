@@ -329,6 +329,31 @@ var CORE = (function () {
     }
     return n;
   }
+  // Overpass の `out geom` 応答(elements)をそのまま地図パネルのベクタ(decodeVec と同じ形)にする。
+  // フリーモードで現在地周辺の道路網(歩道 footway=sidewalk まで)をオンラインで取るのに使う。
+  // クラスは gpx2route.py の ROAD_CLASS と同じ(4=幹線 … 1=歩道/小道)
+  var OSM_ROAD_CLASS = { motorway: 4, trunk: 4, primary: 4, motorway_link: 4, trunk_link: 4, primary_link: 4,
+    secondary: 3, tertiary: 3, secondary_link: 3, tertiary_link: 3,
+    residential: 2, unclassified: 2, living_street: 2, pedestrian: 2,
+    service: 1, footway: 1, path: 1, steps: 1, cycleway: 1, track: 1, bridleway: 1 };
+  function osmToVec(elements) {
+    var out = { road: [], rail: [], water: [] }, n = 0;
+    for (var i = 0; i < (elements || []).length; i++) {
+      var el = elements[i], t = el.tags || {}, g = el.geometry;
+      if (!g || g.length < 2) continue;
+      var line = [];
+      for (var j = 0; j < g.length; j++) if (g[j].lat != null && g[j].lon != null) line.push([g[j].lat, g[j].lon]);
+      if (line.length < 2) continue;
+      var hw = t.highway, rw = t.railway;
+      if (hw && OSM_ROAD_CLASS[hw]) { out.road.push([OSM_ROAD_CLASS[hw], line]); n++; }
+      else if (rw === 'rail' || rw === 'subway' || rw === 'light_rail' || rw === 'monorail' || rw === 'tram') { out.rail.push([rw === 'subway' ? 1 : 2, line]); n++; }
+      else if (t.natural === 'water' || t.waterway === 'riverbank' || t.waterway === 'river' || t.waterway === 'canal' || t.waterway === 'moat') { out.water.push([1, line]); n++; }
+    }
+    if (!out.road.length) delete out.road;
+    if (!out.rail.length) delete out.rail;
+    if (!out.water.length) delete out.water;
+    return n ? out : null;
+  }
   // 地理院タイルの提供範囲(緯度20〜46・経度122〜154)。外では取得しない
   function inJapanDem(la, lo) { return la >= 20 && la <= 46 && lo >= 122 && lo <= 154; }
 
@@ -736,7 +761,7 @@ var CORE = (function () {
     ghostTimeAt: ghostTimeAt, ghostDelta: ghostDelta, signedCrossTrack: signedCrossTrack,
     buildStars: buildStars,
     demElev: demElev, contourStep: contourStep, gradPercentile: gradPercentile,
-    freeContourStep: freeContourStep, paleMask: paleMask, paleEdges: paleEdges, inJapanDem: inJapanDem,
+    freeContourStep: freeContourStep, paleMask: paleMask, paleEdges: paleEdges, inJapanDem: inJapanDem, osmToVec: osmToVec,
     marchingSquares: marchingSquares, ridgeValley: ridgeValley, ridgeValleyFlow: ridgeValleyFlow,
     hav: hav, bearing: bearing, destPoint: destPoint,
     buildRoute: buildRoute,

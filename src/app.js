@@ -40,6 +40,7 @@
     posHist: [], identLock: null,   // C-4: 直近の生GPS / C-6: 注視ロック中の対象
     alongHist: [],                  // C-8: [ms, along] 直近70秒(実効速度=Δalong/Δt)
     freeSel: false, freeGoal: 0, freeLastGood: null, freeDone: false,   // その場モード
+    freeVec: null, freeVecBusy: false, freeVecErr: '',                    // その場モードの OSM 道路網(オンライン時)
     sun: null, sunNotice: false,
     wx: null, wxTriedMs: 0,
     track: [], lastTrackMs: 0,
@@ -435,6 +436,7 @@
       S.route = buildFreeRoute(f0.la, f0.lo, S.freeGoal);
       S.sun = CORE.sunTimes(f0.la, f0.lo, nowDate());
       prefetchFreeTiles(f0.la, f0.lo);                     // 10km四方の概観タイルを先読み(SWがTILESへ保存)
+      S.freeVec = null; S.route.vec = null; fetchFreeVec(f0.la, f0.lo);   // 道路網(歩道まで)はオンライン時だけ
     }
     pushScreen('main');                                   // ←権限解決後にpushState(公式の既知問題対策)
     S.mode = 'main'; S.tracking = true;
@@ -488,6 +490,7 @@
     if (S.route.total && S.along >= S.route.total && !S.freeDone) {
       S.freeDone = true; wpFlash('目標 ' + (S.route.total / 1000) + 'km 到達');
     }
+    if (S.freeVec && !S.freeVecBusy && freeVecNeeds(f.la, f.lo)) fetchFreeVec(f.la, f.lo);   // 取得範囲の縁に来たら足す
     scheduleArrow(); render();
   }
   function onFix(f) {
@@ -1780,7 +1783,9 @@
     return '<div class="dim">地形: z' + (t.z || '-') + ' タイル ' + (t.got || 0) + '/' + (t.need || 0) +
       (srcs.length ? ' (' + srcs.join(', ') + ')' : '') + (t.range != null ? ' レンジ' + Math.round(t.range) + 'm' : '') +
       (t.stepTxt ? ' 等高線' + t.stepTxt : '') + ' 下地' + (pc && pc.url ? '有(z' + pc.z + ')' : '無') +
-      (t.outside ? ' 提供範囲外' : '') + '</div>';
+      (t.outside ? ' 提供範囲外' : '') + '</div>' +
+      (S.freeVec ? '<div class="dim">道路網: OSM ' + S.freeVec.n + '要素 (© OpenStreetMap contributors)</div>'
+                 : (S.freeVecErr ? '<div class="dim">道路網: OSM 取得失敗(' + esc(S.freeVecErr).slice(0, 40) + ') → 淡色地図</div>' : ''));
   }
   function startSelHtml() {
     if (!S.startCands || S.diag || S.paceEdit != null) return '';
@@ -2110,6 +2115,40 @@
       }
     } catch (e) {}
   }
+  // その場モードの道路網: 現在地 ±1.2km の highway/railway/water を Overpass から取り、デモと同じベクタ描画に乗せる。
+  // 淡色地図の線画には歩道が無い(道路の縁だけ)。実機の要望「等高線もいいが歩道も出して、山も平地も使いたい」。
+  // オフラインや失敗は黙って淡色地図の線画に落ちる(navigator.onLine はグラスで嘘をつくので見ない)
+  var FREE_VEC_HALF_M = 1200;
+  function fetchFreeVec(la, lo) {
+    if (typeof fetch !== 'function' || S.freeVecBusy || !CORE.inJapanDem(la, lo)) return;
+    var dla = FREE_VEC_HALF_M / 110540.0, dlo = FREE_VEC_HALF_M / (111320.0 * Math.max(0.1, Math.cos(la * Math.PI / 180)));
+    var bbox = [la - dla, lo - dlo, la + dla, lo + dlo];
+    var q = '[out:json][timeout:25];(way["highway"](' + bbox.join(',') + ');way["railway"~"^(rail|subway|light_rail|monorail|tram)$"](' +
+            bbox.join(',') + ');way["natural"="water"](' + bbox.join(',') + '););out geom;';
+    S.freeVecBusy = true; S.freeVecErr = '';
+    var ctl = (typeof AbortController === 'function') ? new AbortController() : null;
+    var timer = ctl ? setTimeout(function () { ctl.abort(); }, 30000) : null;
+    fetch('https://overpass-api.de/api/interpreter', { method: 'POST', body: 'data=' + encodeURIComponent(q),
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, signal: ctl ? ctl.signal : undefined })
+      .then(function (r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
+      .then(function (j) {
+        var v = CORE.osmToVec(j.elements);
+        if (!v) throw new Error('empty');
+        if (S.freeVec && S.freeVec.vec) {                        // 続きの取得は足す(古い分も残す)
+          for (var k in v) if (Object.prototype.hasOwnProperty.call(v, k)) S.freeVec.vec[k] = (S.freeVec.vec[k] || []).concat(v[k]);
+          S.freeVec.bbox = bbox;
+        } else S.freeVec = { bbox: bbox, vec: v, n: 0 };
+        S.freeVec.n = (S.freeVec.n || 0) + (j.elements ? j.elements.length : 0);
+        if (isFree()) S.route.vec = S.freeVec.vec;
+        for (var key in vecCache) if (Object.prototype.hasOwnProperty.call(vecCache, key) && key.indexOf('free:') === 0) delete vecCache[key];
+        S.freeVecBusy = false; if (timer) clearTimeout(timer); render();
+      })['catch'](function (e) { S.freeVecErr = String(e && e.message || e); S.freeVecBusy = false; if (timer) clearTimeout(timer); render(); });
+  }
+  function freeVecNeeds(la, lo) {                          // 取得済み範囲の縁 300m まで来たら次を取る
+    if (!S.freeVec || !S.freeVec.bbox) return true;
+    var b = S.freeVec.bbox, m = 300 / 110540.0, ml = 300 / (111320.0 * Math.max(0.1, Math.cos(la * Math.PI / 180)));
+    return la < b[0] + m || la > b[2] - m || lo < b[1] + ml || lo > b[3] - ml;
+  }
   function loadDemTile(src, z, x, y, cb) {      // → 標高配列 / 失敗はnull
     var k = src + '/' + z + '/' + x + '/' + y;
     if (demGrids[k]) { cb(demGrids[k] === 'fail' ? null : demGrids[k]); return; }
@@ -2190,8 +2229,7 @@
       // フリーモードは 15m 未満を平坦とし、代わりに淡色地図の2値化下地を出す(DATA_SOURCES_freemode §3)
       if (range < (free ? 15 : 10)) {
         terrCache[key].flat = true; terrCache[key].fail = true;
-        if (free) buildPale(key, geo, W, H);
-        render(); return;
+        render(); return;                                  // フリーモードの下地(OSM/淡色地図)は panelMap が常時出す
       }
       // SPEC A-2: 階層化。主曲線10m(最暗)/計曲線50m(中)/尾根線(最明)/谷線(青系)。
       // 10mが数px間隔に潰れる急斜面では主曲線を落として計曲線だけにする(密度ガード)。
@@ -2325,7 +2363,7 @@
       if (!drew) return null;
       cx.clearRect(0, H - 32, 190, 32);          // スケールバー
       cx.clearRect(W - 56, 0, 56, 30);           // N↑
-      cx.clearRect(W - 400, H - 26, 400, 26);    // クレジット
+      cx.clearRect(W - 300, H - 48, 300, 48);    // クレジット(フリーモードは2行)
       return cv.toDataURL();
     } catch (e) { return null; }
   }
@@ -2432,7 +2470,7 @@
     // 意味ありげなノイズにしかならない = 正直さゲートの逆(SPEC A-1)
     var isUrban = (r.domain === 'urban');
     var useVec = !!(r.vec && isUrban);
-    var under = '', credit;
+    var under = '', base = '', credit;
     if (useVec) {
       if (!(tKey in vecCache)) vecCache[tKey] = drawVec(r, geoM, W, H);
       credit = vecCache[tKey] ? '地図: © OpenStreetMap contributors' : '線図(地図未取得)';
@@ -2440,21 +2478,26 @@
     } else if (isUrban) {
       credit = '';                        // 黒地+ルート+WPのみ。出典が無いのでクレジットも出さない
     } else if (isFree()) {
-      // 優先順(DATA_SOURCES_freemode §3): 測位なし → 提供範囲外 → 取得中 → 等高線 → 平坦地は淡色下地
+      // 山でも平地でも「下地(道路網) + 等高線」を重ねる。下地は OSM ベクタ(歩道まで、オンライン時) > 淡色地図の線画。
+      // 優先順(DATA_SOURCES_freemode §3): 測位なし → 提供範囲外 → 取得中 → 等高線(平坦地は注記のみ)
       if (!S.lastFix) credit = '測位待ち';
       else {
         if (!terrCache[tKey]) buildTerrain(tKey, geoM, W, H);
-        var tf = terrCache[tKey], pf = paleCache[tKey];
-        if (tf && tf.outside) credit = '地形データ提供範囲外';
-        else if (tf && tf.url) { under = tf.url; credit = '地図: 地理院タイル(標高) ・ 等高線' + tf.stepTxt; }
-        else if (tf && tf.flat) {
-          // 平坦地の注記はクレジットに並べると1行に収まらずスケールバーに重なるので、走行キャプション側に出す
-          if (pf && pf.url) { under = pf.url; credit = '地図: 地理院タイル(淡色地図)'; }
-          else if (pf && !pf.fail) credit = '下地 ' + pf.got + '/' + pf.need + ' 取得中';
-          else credit = '';
+        var tf = terrCache[tKey], parts = [];
+        if (r.vec) {
+          if (!(tKey in vecCache)) vecCache[tKey] = drawVec(r, geoM, W, H);
+          if (vecCache[tKey]) { base = vecCache[tKey]; parts.push('© OpenStreetMap'); }
+        } else if (!(tf && tf.outside)) {
+          if (!paleCache[tKey]) buildPale(tKey, geoM, W, H);
+          var pf = paleCache[tKey];
+          if (pf && pf.url) { base = pf.url; parts.push('地理院 淡色地図'); }
+          else if (pf && !pf.fail) parts.push('下地 ' + pf.got + '/' + pf.need + ' 取得中');
         }
-        else if (tf && !tf.fail) credit = '地形 ' + (tf.got || 0) + '/' + (tf.need || '?') + ' 取得中';
-        else credit = '線図(地形未取得)';
+        if (tf && tf.outside) parts.push('地形データ提供範囲外');
+        else if (tf && tf.url) { under = tf.url; parts.push('地理院 等高線' + tf.stepTxt); }
+        else if (tf && tf.flat) { /* 平坦地の注記は走行キャプション側 */ }
+        else if (tf && !tf.fail) parts.push('地形 ' + (tf.got || 0) + '/' + (tf.need || '?') + ' 取得中');
+        credit = parts.length ? '地図: ' + parts.join('<br>') : '';    // 2層分は右下に2行(1行だとスケールバーに重なる)
       }
     } else {
       if (!terrCache[tKey]) buildTerrain(tKey, geoM, W, H);
@@ -2470,12 +2513,11 @@
       }
     }
     credit = credit || '';
-    under = under
-      ? '<img src="' + under + '" width="' + W + '" height="' + H + '" style="position:absolute;left:0;top:0">'
-      : '';
+    under = (base ? '<img src="' + base + '" width="' + W + '" height="' + H + '" style="position:absolute;left:0;top:0">' : '') +
+            (under ? '<img src="' + under + '" width="' + W + '" height="' + H + '" style="position:absolute;left:0;top:0">' : '');
     return '<div class="abs ctr" style="top:44px"><div style="position:relative;width:' + W + 'px;height:' + H + 'px;display:inline-block">' + under +
       '<div style="position:absolute;left:0;top:0">' + svg + '</div>' +
-      (credit ? '<div style="position:absolute;right:4px;bottom:2px;font-size:18px;color:#6b675c">' + credit + '</div>' : '') +
+      (credit ? '<div style="position:absolute;right:4px;bottom:2px;font-size:18px;line-height:20px;text-align:right;color:#6b675c">' + credit + '</div>' : '') +
       '</div></div>' +
       '<div class="abs ctr" style="top:396px"><span class="ct1 dim">' + cap + '</span></div>' +
       '<div class="abs ctr" style="top:428px"><span class="sub dim">' + rawCap + '</span></div>';

@@ -656,6 +656,12 @@ const sleep = (ms) => new Promise(r => setTimeout(r, ms));
     S11.lastFix = { la: 10.0, lo: 100.0, acc: 8 }; S11.lastFixReal = Date.now(); S11.route.pts[0] = [10.0, 100.0, 0]; T().render();
     ok(/地形データ提供範囲外/.test(text()), 'outside the GSI coverage: 「地形データ提供範囲外」 and no fetch');
     S11.route.pts[0] = [fix0.la, fix0.lo, 0]; S11.lastFix = fix0; T().render();
+    // 道路網(OSM)を注入: jsdom は canvas を描けないので、描けていないものを © OpenStreetMap と名乗らない(正直さゲート)
+    S11.route.vec = window.CORE.osmToVec([{ type: 'way', tags: { highway: 'footway', footway: 'sidewalk' },
+      geometry: [{ lat: fix0.la, lon: fix0.lo }, { lat: fix0.la + 0.001, lon: fix0.lo }] }]);
+    T().render();
+    ok(!/OpenStreetMap/.test(text()) && /地形 \d+\/\d+ 取得中/.test(text()), 'a road layer that could not be drawn is not credited; terrain progress still shown');
+    S11.route.vec = null;
     key('ArrowLeft'); key('ArrowLeft');   // panel 0 に戻す
     S11.tracking = false; S11.mode = 'select'; S11.freeSel = false; S11.routeIdx = 0; T().render();
   }

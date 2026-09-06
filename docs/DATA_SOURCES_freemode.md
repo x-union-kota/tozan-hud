@@ -65,3 +65,10 @@ canvasに `crossOrigin='anonymous'` で不透明描画→getImageData。
 - §5 は `diagHtml()` の末尾行: `地形: z15 タイル 4/4 (dem5a_png 3, dem_png@14 1) レンジ32m 等高線2/10m 下地無`
 - テスト: core `[free terrain]`(間隔・2値化・提供範囲)、smoke(取得中/測位待ち/提供範囲外の優先順)。
   タイルの実描画は jsdom では出来ないので、東京駅(平坦→淡色下地)をブラウザで目視した
+- **追加(2026-09-06、実機の要望)**: 「等高線もいいが歩道も出して、山も平地も使いたい」→ §2 の「山域では使わない」を撤回し、
+  山でも平地でも **下地(道路網)+等高線** の2層にした。下地は開始時にオンラインなら Overpass(`overpass-api.de`)から
+  現在地 ±1.2km の highway/railway/natural=water を `out geom` で取り(`fetchFreeVec`、POST・30秒abort・取得範囲の縁 300m で
+  継ぎ足し)、`CORE.osmToVec` でデモと同じベクタ描画(歩道 footway=sidewalk は cls1 の細線)に乗せる。淡色地図の線画には
+  歩道が無い(道路の縁だけ)のでこちらを優先し、オフライン/失敗時だけ淡色地図に落ちる。クレジットは右下2行
+  (「© OpenStreetMap」「地理院 等高線2/10m」)。診断行に「道路網: OSM n要素」/失敗理由。sw.js は overpass を
+  キャッシュしないので再開時はもう一度取りに行く(ルート有りモードの焼き込みとは違い、その場では取れる範囲で正直に)

@@ -519,6 +519,21 @@ console.log('[free terrain]');
   ok(n === 1 && px[3] === 0 && px[7] === 255 && px[4] === 0x4a && px[11] === 0 && px[15] === 0,
      'paleMask keeps only dark strokes as the fixed grey and clears everything else (incl. transparent)');
   ok(CORE.inJapanDem(35.68, 139.77) && !CORE.inJapanDem(10, 139) && !CORE.inJapanDem(35, 100), 'inJapanDem: 地理院タイルの提供範囲');
+  // Overpass 応答 → 地図ベクタ(歩道は cls1、幹線は cls4、鉄道・水域は別層。タグ無し/1点は捨てる)
+  const els = [
+    { type: 'way', tags: { highway: 'footway', footway: 'sidewalk' }, geometry: [{ lat: 35.0, lon: 139.0 }, { lat: 35.001, lon: 139.0 }] },
+    { type: 'way', tags: { highway: 'primary' }, geometry: [{ lat: 35.0, lon: 139.0 }, { lat: 35.0, lon: 139.002 }] },
+    { type: 'way', tags: { railway: 'subway' }, geometry: [{ lat: 35.0, lon: 139.0 }, { lat: 35.002, lon: 139.002 }] },
+    { type: 'way', tags: { natural: 'water' }, geometry: [{ lat: 35.0, lon: 139.0 }, { lat: 35.0, lon: 139.001 }, { lat: 35.001, lon: 139.001 }] },
+    { type: 'way', tags: { building: 'yes' }, geometry: [{ lat: 35.0, lon: 139.0 }, { lat: 35.0, lon: 139.001 }] },
+    { type: 'way', tags: { highway: 'path' }, geometry: [{ lat: 35.0, lon: 139.0 }] },
+    { type: 'node', lat: 35, lon: 139, tags: { highway: 'crossing' } },
+  ];
+  const v = CORE.osmToVec(els);
+  ok(v && v.road.length === 2 && v.road[0][0] === 1 && v.road[1][0] === 4 && v.rail.length === 1 && v.rail[0][0] === 1 && v.water.length === 1,
+     'osmToVec: sidewalk(1) + primary(4) / subway rail / water; buildings, 1-point ways and nodes dropped');
+  ok(v.road[0][1].length === 2 && v.road[0][1][1][0] === 35.001, 'osmToVec keeps [lat, lon] geometry in order');
+  ok(CORE.osmToVec([]) === null && CORE.osmToVec(null) === null, 'osmToVec: nothing usable → null (falls back to the pale map)');
   // 輝度の段差で線を抜く: 左半分が地色(0.93)・右半分が白(1.0)の 8×2 → 境界の両側だけが線
   const w = 8, h = 2, img = new Uint8ClampedArray(w * h * 4);
   for (let i = 0; i < w * h; i++) { const v = (i % w) < 4 ? 237 : 255; img[i * 4] = img[i * 4 + 1] = img[i * 4 + 2] = v; img[i * 4 + 3] = 255; }
