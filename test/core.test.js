@@ -507,6 +507,29 @@ console.log('[cross track]');
 }
 
 /* 16. 尾根線・谷線の抽出(SPEC A-2。描画は次段だが関数は検証しておく) */
+console.log('[free terrain]');
+{
+  // 自動間隔: レンジが20本以内に収まる最小の間隔
+  ok(CORE.freeContourStep(15) === 1 && CORE.freeContourStep(21) === 2 && CORE.freeContourStep(41) === 5 &&
+     CORE.freeContourStep(101) === 10 && CORE.freeContourStep(500) === 50 && CORE.freeContourStep(2500) === 100,
+     'freeContourStep picks 1/2/5/10/20/50/100 so the range fits in ≤20 lines');
+  // 淡色地図の反転2値化: 白地(反転後暗い)は透明、濃い線(反転後明るい)は指定色の不透明
+  const px = new Uint8ClampedArray([255, 255, 255, 255,  40, 40, 40, 255,  200, 200, 200, 255,  0, 0, 0, 0]);
+  const n = CORE.paleMask(px, 0.55, [0x4a, 0x46, 0x3e]);
+  ok(n === 1 && px[3] === 0 && px[7] === 255 && px[4] === 0x4a && px[11] === 0 && px[15] === 0,
+     'paleMask keeps only dark strokes as the fixed grey and clears everything else (incl. transparent)');
+  ok(CORE.inJapanDem(35.68, 139.77) && !CORE.inJapanDem(10, 139) && !CORE.inJapanDem(35, 100), 'inJapanDem: 地理院タイルの提供範囲');
+  // 輝度の段差で線を抜く: 左半分が地色(0.93)・右半分が白(1.0)の 8×2 → 境界の両側だけが線
+  const w = 8, h = 2, img = new Uint8ClampedArray(w * h * 4);
+  for (let i = 0; i < w * h; i++) { const v = (i % w) < 4 ? 237 : 255; img[i * 4] = img[i * 4 + 1] = img[i * 4 + 2] = v; img[i * 4 + 3] = 255; }
+  const ne = CORE.paleEdges(img, w, h, 0.05, [0x4a, 0x46, 0x3e]);
+  ok(ne === 4 && img[3 * 4 + 3] === 255 && img[4 * 4 + 3] === 255 && img[0 * 4 + 3] === 0 && img[7 * 4 + 3] === 0,
+     `paleEdges keeps only the pixels on either side of a luminance step (${ne} px)`);
+  const img2 = new Uint8ClampedArray(w * h * 4);
+  for (let i = 0; i < w * h; i++) { const v = (i % w) < 4 ? 237 : 255; img2[i * 4] = img2[i * 4 + 1] = img2[i * 4 + 2] = v; img2[i * 4 + 3] = 255; }
+  ok(CORE.paleMask(img2, 0.55, [1, 2, 3]) === 0, 'the plain threshold would keep nothing of a pale tile (why edges are used)');
+}
+
 console.log('[ridge]');
 {
   // 流域集積版: 屋根型(中央が高い) → 尾根が中央の縦線、谷は両端。谷型ならその逆

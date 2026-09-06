@@ -434,6 +434,7 @@
       if (!f0) { S.perm = 'その場モードは現在地が必要です'; S.starting = false; render(); return; }
       S.route = buildFreeRoute(f0.la, f0.lo, S.freeGoal);
       S.sun = CORE.sunTimes(f0.la, f0.lo, nowDate());
+      prefetchFreeTiles(f0.la, f0.lo);                     // 10km四方の概観タイルを先読み(SWがTILESへ保存)
     }
     pushScreen('main');                                   // ←権限解決後にpushState(公式の既知問題対策)
     S.mode = 'main'; S.tracking = true;
@@ -1767,7 +1768,19 @@
       '<div>真方位:' + v(headingTrue()) + '°(偏角' + ((S.route && S.route.dec) || 7.5) + '西)</div>' +
       '<div class="dim">reg:' + ((S.route && S.route.reg) ? S.route.reg.length : 0) + '件 星:' + (sky().s.length + sky().v.length) + '(線用' + sky().v.length + ') Lap:' + S.lap + '</div>' +
       '<div class="dim">星表: HYG Database (CC BY-SA) ／ 星座線: Stellarium</div>' +
+      terrDiagLine() +
       '</div></div>';
+  }
+  function terrDiagLine() {                                // フリーモードの地形参照の状態(DATA_SOURCES_freemode §5)
+    var k = null, key;
+    for (key in terrCache) if (Object.prototype.hasOwnProperty.call(terrCache, key) && key.indexOf('free:') === 0) k = key;
+    if (!k) return '';
+    var t = terrCache[k], pc = paleCache[k], srcs = [];
+    for (key in (t.srcs || {})) if (Object.prototype.hasOwnProperty.call(t.srcs, key)) srcs.push(key + ' ' + t.srcs[key]);
+    return '<div class="dim">地形: z' + (t.z || '-') + ' タイル ' + (t.got || 0) + '/' + (t.need || 0) +
+      (srcs.length ? ' (' + srcs.join(', ') + ')' : '') + (t.range != null ? ' レンジ' + Math.round(t.range) + 'm' : '') +
+      (t.stepTxt ? ' 等高線' + t.stepTxt : '') + ' 下地' + (pc && pc.url ? '有(z' + pc.z + ')' : '無') +
+      (t.outside ? ' 提供範囲外' : '') + '</div>';
   }
   function startSelHtml() {
     if (!S.startCands || S.diag || S.paceEdit != null) return '';
@@ -2033,6 +2046,8 @@
     var r = la * Math.PI / 180;
     return (1 - Math.log(Math.tan(r) + 1 / Math.cos(r)) / Math.PI) / 2 * Math.pow(2, z);
   }
+  function tx2lon(x, z) { return x / Math.pow(2, z) * 360 - 180; }
+  function ty2lat(y, z) { var n = Math.PI - 2 * Math.PI * y / Math.pow(2, z); return Math.atan(0.5 * (Math.exp(n) - Math.exp(-n))) * 180 / Math.PI; }
   function routeTiles(route, z, buf) {   // 回廊タイル一覧(先読み用)
     var seen = {}, out = [];
     for (var i = 0; i < route.pts.length; i++) {
@@ -2064,6 +2079,37 @@
       for (var i = 0; i < ts.length; i++) fetch(demUrl(demSrc(z), z, ts[i][0], ts[i][1]))['catch'](function () {});
     } catch (e) {}
   }
+  // z15 の5mメッシュは dem5a(航空レーザ)→dem5b→dem5c(写真測量)の順に代替し、全滅なら z14 の
+  // 10mメッシュから該当四分区画を拡大する(docs/DATA_SOURCES_freemode.md §1)。→ cb(標高配列|null, 出典)
+  function loadDemAny(z, x, y, cb) {
+    if (z < 15) { loadDemTile('dem_png', z, x, y, function (g) { cb(g, g ? 'dem_png' : null); }); return; }
+    var chain = ['dem5a_png', 'dem5b_png', 'dem5c_png'], i = 0;
+    (function next() {
+      if (i < chain.length) {
+        var s = chain[i++];
+        loadDemTile(s, z, x, y, function (g) { if (g) cb(g, s); else next(); });
+        return;
+      }
+      loadDemTile('dem_png', 14, x >> 1, y >> 1, function (g) {
+        if (!g) { cb(null, null); return; }
+        var ox = (x & 1) * 128, oy = (y & 1) * 128, out = new Array(65536);
+        for (var yy = 0; yy < 256; yy++) for (var xx = 0; xx < 256; xx++) out[yy * 256 + xx] = g[(oy + (yy >> 1)) * 256 + ox + (xx >> 1)];
+        cb(out, 'dem_png@14');
+      });
+    })();
+  }
+  function prefetchFreeTiles(la, lo) {          // その場モード: 初回測位直後に 10km 四方の z14 標高タイル(±3=49枚, 上限36)を先読み
+    if (SIM || typeof fetch !== 'function' || !CORE.inJapanDem(la, lo)) return;
+    try {
+      var z = 14, cx = Math.floor(lon2tx(lo, z)), cy = Math.floor(lat2ty(la, z)), n = 0;
+      for (var r = 0; r <= 3 && n < 36; r++) {
+        for (var dx = -r; dx <= r && n < 36; dx++) for (var dy = -r; dy <= r && n < 36; dy++) {
+          if (Math.max(Math.abs(dx), Math.abs(dy)) !== r) continue;
+          fetch(demUrl('dem_png', z, cx + dx, cy + dy))['catch'](function () {}); n++;
+        }
+      }
+    } catch (e) {}
+  }
   function loadDemTile(src, z, x, y, cb) {      // → 標高配列 / 失敗はnull
     var k = src + '/' + z + '/' + x + '/' + y;
     if (demGrids[k]) { cb(demGrids[k] === 'fail' ? null : demGrids[k]); return; }
@@ -2089,27 +2135,29 @@
     terrCache[key] = { url: null, fail: false, step: null };
     if (typeof document === 'undefined' || !document.createElement) { terrCache[key].fail = true; return; }
     var tl = geo.unpx(0, 0), br = geo.unpx(W, H);      // 取得範囲はルートbboxでなく画面の四隅から(余白も埋める)
-    var g2 = { unpx: geo.unpx,
+    var g2 = { unpx: geo.unpx, px: geo.px,
                minLo: Math.min(tl[0], br[0]), maxLo: Math.max(tl[0], br[0]),
                minLa: Math.min(tl[1], br[1]), maxLa: Math.max(tl[1], br[1]) };
-    fetchDem(key, g2, W, H, demZoomFor(g2, 12), false);
+    var c = geo.unpx(W / 2, H / 2);
+    if (!CORE.inJapanDem(c[1], c[0])) { terrCache[key].outside = true; terrCache[key].fail = true; return; }   // 提供範囲外は取りに行かない
+    fetchDem(key, g2, W, H, demZoomFor(g2, 12));
   }
-  function fetchDem(key, geo, W, H, z, force10m) {
-    var src = force10m ? 'dem_png' : demSrc(z);
-    if (src === 'dem_png' && z > 14) z = 14;
+  function fetchDem(key, geo, W, H, z) {
+    if (z > 15) z = 15;
     var x0 = Math.floor(lon2tx(geo.minLo, z)), x1 = Math.floor(lon2tx(geo.maxLo, z));
     var y0 = Math.floor(lat2ty(geo.maxLa, z)), y1 = Math.floor(lat2ty(geo.minLa, z));
-    var need = (x1 - x0 + 1) * (y1 - y0 + 1);
-    if (need > 24) { terrCache[key].fail = true; return; }
-    var got = 0, done = 0, tiles = {};
+    var need = (x1 - x0 + 1) * (y1 - y0 + 1), tc = terrCache[key];
+    if (need > 24) { tc.fail = true; return; }
+    tc.z = z; tc.need = need; tc.got = 0; tc.done = 0; tc.srcs = {};
+    var tiles = {};
     for (var tx = x0; tx <= x1; tx++) {
       for (var ty = y0; ty <= y1; ty++) {
         (function (tx, ty) {
-          loadDemTile(src, z, tx, ty, function (g) {
-            if (g) { tiles[tx + '/' + ty] = g; got++; }
-            if (++done < need) return;
-            if (src === 'dem5a_png' && got * 2 < need) { fetchDem(key, geo, W, H, 14, true); return; }
-            if (got === 0) { terrCache[key].fail = true; render(); return; }   // 未取得は線図のまま(縮退)
+          loadDemAny(z, tx, ty, function (g, src) {
+            tc.done++;
+            if (g) { tiles[tx + '/' + ty] = g; tc.got++; tc.srcs[src] = (tc.srcs[src] || 0) + 1; }
+            if (tc.done < need) { if (isFree()) render(); return; }        // 「地形 12/36 取得中」を更新
+            if (tc.got === 0) { tc.fail = true; render(); return; }   // 未取得は線図のまま(縮退)
             drawContours(key, geo, W, H, z, tiles);
           });
         })(tx, ty);
@@ -2135,12 +2183,20 @@
         }
       }
       if (valid < gw * gh * 0.2) { terrCache[key].fail = true; render(); return; }  // 大半が無効域
+      var free = isFree(), range = mx - mn;
+      terrCache[key].range = range;
       // 起伏が10m未満なら線を引かない。平坦地の等高線は岸壁段差と建物基壇しか描かず
-      // 意味ありげなノイズになる(A-1 で晴海の実機確認)。皇居(24m)は残り、晴海(3m)は落ちる
-      if (mx - mn < 10) { terrCache[key].flat = true; terrCache[key].fail = true; render(); return; }
+      // 意味ありげなノイズになる(A-1 で晴海の実機確認)。皇居(24m)は残り、晴海(3m)は落ちる。
+      // フリーモードは 15m 未満を平坦とし、代わりに淡色地図の2値化下地を出す(DATA_SOURCES_freemode §3)
+      if (range < (free ? 15 : 10)) {
+        terrCache[key].flat = true; terrCache[key].fail = true;
+        if (free) buildPale(key, geo, W, H);
+        render(); return;
+      }
       // SPEC A-2: 階層化。主曲線10m(最暗)/計曲線50m(中)/尾根線(最明)/谷線(青系)。
-      // 10mが数px間隔に潰れる急斜面では主曲線を落として計曲線だけにする(密度ガード)
-      var STEP_MAIN = 10, STEP_INDEX = 50;
+      // 10mが数px間隔に潰れる急斜面では主曲線を落として計曲線だけにする(密度ガード)。
+      // フリーモードは画面内レンジが 8〜20 本になる間隔を自動選択(計曲線=主曲線×5)
+      var STEP_MAIN = free ? CORE.freeContourStep(range) : 10, STEP_INDEX = free ? STEP_MAIN * 5 : 50;
       var g60 = CORE.gradPercentile(grid, gw, gh, GRID, 0.6);
       var drawMain = !g60 || (STEP_MAIN / g60) >= 4;
       var cv = document.createElement('canvas'); cv.width = W; cv.height = H;
@@ -2178,10 +2234,63 @@
       }
       var step = drawMain ? STEP_MAIN : STEP_INDEX;
       terrCache[key].step = drew ? step : null;
+      terrCache[key].stepTxt = drawMain ? STEP_MAIN + '/' + STEP_INDEX + 'm' : STEP_INDEX + 'm';
       terrCache[key].url = drew ? cv.toDataURL() : null;
       terrCache[key].fail = !drew;                       // 平坦すぎて線が出ない場合も線図に縮退
       render();
     } catch (e) { terrCache[key].fail = true; render(); }
+  }
+
+  /* ---- フリーモードの平坦地用下地: 地理院 淡色地図(pale)を反転2値化して線画にする(DATA_SOURCES_freemode §2) ----
+     山域では使わない(等高線と競合)。ルート有りモードでも使わない。 */
+  var paleCache = {};   // key → {url, fail, need, got, z}
+  function buildPale(key, geo, W, H) {
+    if (paleCache[key]) return;
+    var pc = paleCache[key] = { url: null, fail: false, need: 0, got: 0, z: null };
+    if (typeof document === 'undefined' || !document.createElement || !geo.px) { pc.fail = true; return; }
+    var z = Math.min(16, Math.max(15, demZoomFor(geo, 12)));   // 概観 z15 / 詳細 z16
+    function tilesAt(zz) {
+      var x0 = Math.floor(lon2tx(geo.minLo, zz)), x1 = Math.floor(lon2tx(geo.maxLo, zz));
+      var y0 = Math.floor(lat2ty(geo.maxLa, zz)), y1 = Math.floor(lat2ty(geo.minLa, zz));
+      var out = [];
+      for (var tx = x0; tx <= x1; tx++) for (var ty = y0; ty <= y1; ty++) out.push([tx, ty]);
+      return out;
+    }
+    var ts = tilesAt(z);
+    if (ts.length > 16 && z > 15) { z = 15; ts = tilesAt(z); }
+    if (ts.length > 16) { pc.fail = true; return; }
+    pc.z = z; pc.need = ts.length;
+    var cv = document.createElement('canvas'); cv.width = W; cv.height = H;
+    var cx = cv.getContext('2d');
+    if (!cx) { pc.fail = true; return; }
+    var done = 0;
+    function finish() {
+      if (++done < pc.need) { render(); return; }
+      if (!pc.got) { pc.fail = true; render(); return; }
+      try {
+        var id = cx.getImageData(0, 0, W, H);
+        // 仕様は反転2値化(輝度>0.55)だが実タイルでは文字と記号しか残らない(東京駅で実測)ので輝度の段差で線を抜く
+        CORE.paleEdges(id.data, W, H, 0.12, [0x4a, 0x46, 0x3e]);
+        cx.putImageData(id, 0, 0);
+        pc.url = cv.toDataURL();
+      } catch (e) { pc.fail = true; }
+      render();
+    }
+    for (var i = 0; i < ts.length; i++) {
+      (function (tx, ty) {
+        var im = new Image(); im.crossOrigin = 'anonymous';
+        im.onload = function () {
+          try {
+            var p0 = geo.px(tx2lon(tx, z), ty2lat(ty, z)), p1 = geo.px(tx2lon(tx + 1, z), ty2lat(ty + 1, z));
+            cx.drawImage(im, +p0[0], +p0[1], (+p1[0]) - (+p0[0]), (+p1[1]) - (+p0[1]));
+            pc.got++;
+          } catch (e) {}
+          finish();
+        };
+        im.onerror = function () { finish(); };
+        im.src = 'https://cyberjapandata.gsi.go.jp/xyz/pale/' + z + '/' + tx + '/' + ty + '.png';
+      })(ts[i][0], ts[i][1]);
+    }
   }
 
   /* ---- 街中の地図(N2改: 焼き込み済みOSM道路ベクタ) ----
@@ -2244,6 +2353,7 @@
     var W = 460, H = 330, pad = 22;
     var sc = Math.min((W - 2 * pad) / Math.max(maxx - minx, 1), (H - 2 * pad) / Math.max(maxy - miny, 1));
     var ox = (W - (maxx - minx) * sc) / 2, oy = (H - (maxy - miny) * sc) / 2;
+    var tKey0 = r.id + ':' + (r.rotatedFrom || 0) + ':' + Math.round(minx) + ':' + Math.round(miny) + ':' + sc.toFixed(4);
     function px(lo, la) {
       return [((lo * klon - minx) * sc + ox).toFixed(1), (H - ((la * klat - miny) * sc + oy)).toFixed(1)];
     }
@@ -2299,7 +2409,11 @@
     svg += '<text x="' + (W - 34) + '" y="24" fill="#6b675c" font-size="18" font-family="inherit">N↑</text>';
     svg += '</svg>';
     var cap;
-    if (isFree()) cap = '走行 ' + CORE.fmtKm(S.along) + (S.lastFix && S.lastFix.acc != null ? '　±' + Math.round(S.lastFix.acc) + 'm' : '');
+    if (isFree()) {
+      cap = '走行 ' + CORE.fmtKm(S.along) + (S.lastFix && S.lastFix.acc != null ? '　±' + Math.round(S.lastFix.acc) + 'm' : '');
+      var tfl = terrCache[tKey0];
+      if (tfl && tfl.flat) cap += ' ・ 平坦地(標高差' + Math.round(tfl.range) + 'm)';
+    }
     else if (devd >= 2500) cap = 'ルート範囲外 (現在地は図の外)';
     else if (offRouteNow()) cap = '<span class="acc2">ルート外</span> ・ ルートまで ' + CORE.fmtKm(devd);
     else cap = '残 ' + CORE.fmtKm(Math.max(0, r.total - S.along)) + (S.lastFix && S.lastFix.acc != null ? '　±' + Math.round(S.lastFix.acc) + 'm' : '');
@@ -2325,6 +2439,23 @@
       if (vecCache[tKey]) under = vecCache[tKey];
     } else if (isUrban) {
       credit = '';                        // 黒地+ルート+WPのみ。出典が無いのでクレジットも出さない
+    } else if (isFree()) {
+      // 優先順(DATA_SOURCES_freemode §3): 測位なし → 提供範囲外 → 取得中 → 等高線 → 平坦地は淡色下地
+      if (!S.lastFix) credit = '測位待ち';
+      else {
+        if (!terrCache[tKey]) buildTerrain(tKey, geoM, W, H);
+        var tf = terrCache[tKey], pf = paleCache[tKey];
+        if (tf && tf.outside) credit = '地形データ提供範囲外';
+        else if (tf && tf.url) { under = tf.url; credit = '地図: 地理院タイル(標高) ・ 等高線' + tf.stepTxt; }
+        else if (tf && tf.flat) {
+          // 平坦地の注記はクレジットに並べると1行に収まらずスケールバーに重なるので、走行キャプション側に出す
+          if (pf && pf.url) { under = pf.url; credit = '地図: 地理院タイル(淡色地図)'; }
+          else if (pf && !pf.fail) credit = '下地 ' + pf.got + '/' + pf.need + ' 取得中';
+          else credit = '';
+        }
+        else if (tf && !tf.fail) credit = '地形 ' + (tf.got || 0) + '/' + (tf.need || '?') + ' 取得中';
+        else credit = '線図(地形未取得)';
+      }
     } else {
       if (!terrCache[tKey]) buildTerrain(tKey, geoM, W, H);
       var terr = terrCache[tKey];

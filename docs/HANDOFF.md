@@ -91,6 +91,10 @@ node test/core.test.js && node test/app.smoke.js && python3 test/gpx2route.test.
   角だけに間引いて経由点にする(全点を経由点にすると路地でジグザグ)。
   `test/gpx2route.test.py [demo on OSM]` が routes.js の生成物を fixture の道路と突き合わせて守る(皇居 5.0±0.15km・
   反時計回り・横断≤20・全点が道路から5m以内)
+- **[v3.2] フリーモードの地形参照(`docs/DATA_SOURCES_freemode.md`)**: 標高タイルは z15 で dem5a→dem5b→dem5c→z14拡大の
+  タイル単位代替(`loadDemAny`)、初回測位直後に 10km 四方の z14 を先読み、提供範囲外は取りに行かない、帯に「地形 n/N 取得中」。
+  等高線は画面内レンジが20本以内に収まる間隔を自動選択(計曲線=×5)。レンジ 15m 未満は平坦として **淡色地図(pale)を
+  輝度の段差で線画にした下地**を出す(仕様の反転2値化は実タイルで文字しか残らなかった)。診断に地形の状態行
 - **[v3.2] A-2 尾根線/谷線を流域集積で描く(`CORE.ridgeValleyFlow`)**: 旧 `ridgeValley` は「横断面で背が prom 以上」
   のセルだけ拾うので、DEMの量子化とグリッド刻みで背が1セルに収まらない稜線が全部落ちた(高尾山で尾根52px)。
   新法は D8 の流下方向で集積面積を数え、閾値以上のセルを下流へ結ぶ=谷線、DEMを裏返して同じ=尾根線。線は自然に
@@ -173,8 +177,8 @@ tools/
 └── osm_traces.py      OSM公開トレースの選別→時刻付きGPX+標準CTとの実測倍率(引き返し限界のマージン較正用)
                        高尾山で実測済み: 登り0.68 / 下り0.92(休憩込み・n=5)→ C-1 の60分マージンは維持(DATA_SOURCES 優先2b)
 test/
-├── core.test.js       純ロジック 167件
-├── app.smoke.js       jsdom統合 162件(sim経由の全画面フロー+v3.1回帰: 自宅導線・ラップゲート+v3.2: 目標ペース)
+├── core.test.js       純ロジック 172件
+├── app.smoke.js       jsdom統合 167件(sim経由の全画面フロー+v3.1回帰: 自宅導線・ラップゲート+v3.2: 目標ペース)
 └── gpx2route.test.py  変換ツール 94件(OSM分類・seg・domain+v3.2 DEM: デコード/fetch/レイキャスト/ele検査、道路ベクタ: 分類/吸着/予算)
 dist/
 ├── index.html     ビルド成果物(これを配布・デプロイする)

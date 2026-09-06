@@ -9,8 +9,8 @@ Meta Ray-Ban Display(HUD+Neural Band)向けの登山/ランHUD。単一HTMLのWe
 
 ```bash
 python3 tools/build.py            # src/* → dist/index.html (単一HTML組み立て)
-node test/core.test.js            # 純ロジック 167件
-node test/app.smoke.js            # jsdom統合 162件 (要: npm install jsdom / dist を先にビルド)
+node test/core.test.js            # 純ロジック 172件
+node test/app.smoke.js            # jsdom統合 167件 (要: npm install jsdom / dist を先にビルド)
 python3 test/gpx2route.test.py    # 変換ツール 134件
 
 cp dist/index.html index.html && cp dist/sw.js sw.js   # 公開用コピー(GitHub Pages はリポジトリ直下を配信)

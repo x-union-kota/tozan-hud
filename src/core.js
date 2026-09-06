@@ -289,6 +289,49 @@ var CORE = (function () {
     return { v: flow(1), r: flow(-1) };
   }
 
+  /* ---------- フリーモードの地形参照(docs/DATA_SOURCES_freemode.md) ---------- */
+  // 等高線の自動間隔: 画面内の標高レンジが 20 本以内に収まる最小の間隔(1/2/5/10/20/50/100m)。計曲線は主曲線×5
+  function freeContourStep(range) {
+    var cand = [1, 2, 5, 10, 20, 50, 100];
+    for (var i = 0; i < cand.length; i++) if (range / cand[i] <= 20) return cand[i];
+    return 100;
+  }
+  // 淡色地図ラスタの反転2値化: 反転後の輝度が thr を超える画素だけ rgb の線として残し、他は透明にする。
+  // 標準地図だと面の色が残って加算ディスプレイで「モヤ」になるので、淡色地図を線画に落とす。→ 線の画素数
+  function paleMask(data, thr, rgb) {
+    var n = 0;
+    for (var i = 0; i + 3 < data.length; i += 4) {
+      var lum = (0.299 * data[i] + 0.587 * data[i + 1] + 0.114 * data[i + 2]) / 255;
+      if (data[i + 3] > 0 && 1 - lum > thr) { data[i] = rgb[0]; data[i + 1] = rgb[1]; data[i + 2] = rgb[2]; data[i + 3] = 255; n++; }
+      else data[i + 3] = 0;
+    }
+    return n;
+  }
+  // 淡色地図を「輝度の段差」で線画にする。実タイルは地色が明るく(輝度0.9前後)道路は白なので、輝度の閾値だけでは
+  // 文字と記号しか残らない(東京駅で実測)。隣接画素との輝度差 > thr の画素を線として rgb で残し、他は透明にする。
+  // 道路は縁(白と地色の境)が両側に出て2本線になるが、線画としては素直に読める
+  function paleEdges(data, w, h, thr, rgb) {
+    var lum = new Float32Array(w * h), i, x, y;
+    for (i = 0; i < w * h; i++) lum[i] = data[i * 4 + 3] > 0 ? (0.299 * data[i * 4] + 0.587 * data[i * 4 + 1] + 0.114 * data[i * 4 + 2]) / 255 : -1;
+    var n = 0;
+    for (y = 0; y < h; y++) {
+      for (x = 0; x < w; x++) {
+        i = y * w + x;
+        var c = lum[i], g = 0;
+        if (c >= 0) {
+          var l = x > 0 ? lum[i - 1] : c, r = x + 1 < w ? lum[i + 1] : c, u = y > 0 ? lum[i - w] : c, d = y + 1 < h ? lum[i + w] : c;
+          if (l < 0) l = c; if (r < 0) r = c; if (u < 0) u = c; if (d < 0) d = c;
+          g = Math.max(Math.abs(r - l), Math.abs(d - u));
+        }
+        if (g > thr) { data[i * 4] = rgb[0]; data[i * 4 + 1] = rgb[1]; data[i * 4 + 2] = rgb[2]; data[i * 4 + 3] = 255; n++; }
+        else data[i * 4 + 3] = 0;
+      }
+    }
+    return n;
+  }
+  // 地理院タイルの提供範囲(緯度20〜46・経度122〜154)。外では取得しない
+  function inJapanDem(la, lo) { return la >= 20 && la <= 46 && lo >= 122 && lo <= 154; }
+
   /* ---------- 星表(stars.js の圧縮形式)を展開する ----------
      s: ラベル用 [名前, RA時, Dec度, 等級] / v: 線の頂点専用 [RA時, Dec度, 等級]
      c: {略号: {n: 和名, l: [[i,j], ...]}} — 添字は s.concat(v) の連結空間。
@@ -693,6 +736,7 @@ var CORE = (function () {
     ghostTimeAt: ghostTimeAt, ghostDelta: ghostDelta, signedCrossTrack: signedCrossTrack,
     buildStars: buildStars,
     demElev: demElev, contourStep: contourStep, gradPercentile: gradPercentile,
+    freeContourStep: freeContourStep, paleMask: paleMask, paleEdges: paleEdges, inJapanDem: inJapanDem,
     marchingSquares: marchingSquares, ridgeValley: ridgeValley, ridgeValleyFlow: ridgeValleyFlow,
     hav: hav, bearing: bearing, destPoint: destPoint,
     buildRoute: buildRoute,

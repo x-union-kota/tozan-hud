@@ -641,6 +641,25 @@ const sleep = (ms) => new Promise(r => setTimeout(r, ms));
     S10.tracking = false; S10.mode = 'select'; S10.freeSel = false; S10.routeIdx = 0; S10.paceGoal = null; T().render();
   }
 
+  // ---- フリーモードの地形参照(DATA_SOURCES_freemode): 表示の優先順 ----
+  {
+    const S11 = T().S;
+    S11.routeIdx = T().nRoutes; T().render();
+    key('Enter'); await sleep(400); key('Enter'); await sleep(1200);
+    ok(S11.mode === 'main' && S11.tracking, 'free run started for the terrain checks');
+    S11.panel = 2; T().render();
+    ok(/地形 \d+\/\d+ 取得中/.test(text()), 'in Japan without tiles yet: 「地形 n/N 取得中」(jsdom never loads the images)');
+    ok(!/線図\(地形未取得\)/.test(text()), 'it does not claim the terrain failed while tiles are still loading');
+    const fix0 = S11.lastFix;
+    S11.lastFix = null; T().render();
+    ok(/測位待ち/.test(text()), 'no fix: 「測位待ち」 comes first');
+    S11.lastFix = { la: 10.0, lo: 100.0, acc: 8 }; S11.lastFixReal = Date.now(); S11.route.pts[0] = [10.0, 100.0, 0]; T().render();
+    ok(/地形データ提供範囲外/.test(text()), 'outside the GSI coverage: 「地形データ提供範囲外」 and no fetch');
+    S11.route.pts[0] = [fix0.la, fix0.lo, 0]; S11.lastFix = fix0; T().render();
+    key('ArrowLeft'); key('ArrowLeft');   // panel 0 に戻す
+    S11.tracking = false; S11.mode = 'select'; S11.freeSel = false; S11.routeIdx = 0; T().render();
+  }
+
   console.log(`\n${step - fail}/${step} passed`);
   window.close();
   process.exit(fail ? 1 : 0);
